@@ -1,4 +1,4 @@
-#include <Windows.h>
+ï»¿#include <Windows.h>
 #include <tchar.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
@@ -24,14 +24,14 @@ void DebugOutputFormatString(const char* format, ...)
 
 LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	// ƒEƒBƒ“ƒhƒE‚ª”jŠü‚³‚ê‚½‚çŒÄ‚Î‚ê‚é
+	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ãŒç ´æ£„ã•ã‚ŒãŸã‚‰å‘¼ã°ã‚Œã‚‹
 	if (msg == WM_DESTROY)
 	{
-		// OS‚É‘Î‚µ‚Äu‚à‚¤‚±‚ÌƒAƒvƒŠ‚ÍI‚í‚év‚Æ“`‚¦‚é
+		// OSã«å¯¾ã—ã¦ã€Œã‚‚ã†ã“ã®ã‚¢ãƒ—ãƒªã¯çµ‚ã‚ã‚‹ã€ã¨ä¼ãˆã‚‹
 		PostQuitMessage(0);
 		return 0;
 	}
-	// ‹K’è‚Ìˆ—‚ğs‚¤
+	// è¦å®šã®å‡¦ç†ã‚’è¡Œã†
 	return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
@@ -50,38 +50,38 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
 	DebugOutputFormatString("Show window test.");
 
-	// ƒEƒBƒ“ƒhƒEƒNƒ‰ƒX‚Ì¶¬•“o˜^
+	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚¯ãƒ©ã‚¹ã®ç”Ÿæˆï¼†ç™»éŒ²
 	WNDCLASSEX w = {};
 
 	w.cbSize = sizeof(WNDCLASSEX);
-	// ƒR[ƒ‹ƒoƒbƒNŠÖ”‚Ìw’è
+	// ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯é–¢æ•°ã®æŒ‡å®š
 	w.lpfnWndProc = (WNDPROC)WindowProcedure;
-	// ƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒNƒ‰ƒX–¼i“K“–‚Å‚æ‚¢j
+	// ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ã‚¯ãƒ©ã‚¹åï¼ˆé©å½“ã§ã‚ˆã„ï¼‰
 	w.lpszClassName = _T("DX12Sample");
-	// ƒnƒ“ƒhƒ‹‚Ìæ“¾
+	// ãƒãƒ³ãƒ‰ãƒ«ã®å–å¾—
 	w.hInstance = GetModuleHandle(nullptr);
 
-	// ƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒNƒ‰ƒXiƒEƒBƒ“ƒhƒEƒNƒ‰ƒX‚Ìw’è‚ğOS‚É“`‚¦‚éj
+	// ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ã‚¯ãƒ©ã‚¹ï¼ˆã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚¯ãƒ©ã‚¹ã®æŒ‡å®šã‚’OSã«ä¼ãˆã‚‹ï¼‰
 	RegisterClassEx(&w);
 
-	// ƒEƒBƒ“ƒhƒEƒTƒCƒY‚ğŒˆ‚ß‚é
+	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚µã‚¤ã‚ºã‚’æ±ºã‚ã‚‹
 	RECT wrc = { 0, 0, window_width, window_height };
-	// ŠÖ”‚ğg‚Á‚ÄƒEƒBƒ“ƒhƒE‚ÌƒTƒCƒY‚ğ•â³‚·‚é
+	// é–¢æ•°ã‚’ä½¿ã£ã¦ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®ã‚µã‚¤ã‚ºã‚’è£œæ­£ã™ã‚‹
 	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
 
-	// ƒEƒBƒ“ƒhƒEƒIƒuƒWƒFƒNƒg‚Ì¶¬
+	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®ç”Ÿæˆ
 	HWND hwnd = CreateWindow(
-		w.lpszClassName,		// ƒNƒ‰ƒX–¼w’è
-		_T("DX12ƒeƒXƒg"),		// ƒ^ƒCƒgƒ‹ƒo[‚Ì•¶š
-		WS_OVERLAPPEDWINDOW,	// ƒ^ƒCƒgƒ‹ƒo[‚Æ‹«ŠEü‚ª‚ ‚éƒEƒBƒ“ƒhƒE
-		CW_USEDEFAULT,			// •\¦xÀ•W‚ÍOS‚É‚¨”C‚¹
-		CW_USEDEFAULT,			// •\¦yÀ•W‚ÍOS‚É‚¨”C‚¹
-		wrc.right - wrc.left,	// ƒEƒBƒ“ƒhƒE•
-		wrc.bottom - wrc.top,	// ƒEƒBƒ“ƒhƒE‚
-		nullptr,				// eƒEƒBƒ“ƒhƒEƒnƒ“ƒhƒ‹
-		nullptr,				// ƒƒjƒ…[ƒnƒ“ƒhƒ‹
-		w.hInstance,			// ŒÄ‚Ño‚µƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒnƒ“ƒhƒ‹
-		nullptr);				// ’Ç‰Áƒpƒ‰ƒ[ƒ^[
+		w.lpszClassName,		// ã‚¯ãƒ©ã‚¹åæŒ‡å®š
+		_T("DX12ãƒ†ã‚¹ãƒˆ"),		// ã‚¿ã‚¤ãƒˆãƒ«ãƒãƒ¼ã®æ–‡å­—
+		WS_OVERLAPPEDWINDOW,	// ã‚¿ã‚¤ãƒˆãƒ«ãƒãƒ¼ã¨å¢ƒç•Œç·šãŒã‚ã‚‹ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦
+		CW_USEDEFAULT,			// è¡¨ç¤ºxåº§æ¨™ã¯OSã«ãŠä»»ã›
+		CW_USEDEFAULT,			// è¡¨ç¤ºyåº§æ¨™ã¯OSã«ãŠä»»ã›
+		wrc.right - wrc.left,	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦å¹…
+		wrc.bottom - wrc.top,	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦é«˜
+		nullptr,				// è¦ªã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ãƒãƒ³ãƒ‰ãƒ«
+		nullptr,				// ãƒ¡ãƒ‹ãƒ¥ãƒ¼ãƒãƒ³ãƒ‰ãƒ«
+		w.hInstance,			// å‘¼ã³å‡ºã—ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ãƒãƒ³ãƒ‰ãƒ«
+		nullptr);				// è¿½åŠ ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ãƒ¼
 
 	if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory)))) {
 		if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(&_dxgiFactory)))) {
@@ -96,12 +96,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	}
 	for (auto adpt : adapters) {
 		DXGI_ADAPTER_DESC adesc = {};
-		// ƒAƒ_ƒvƒ^[‚Ìà–¾ƒIƒuƒWƒFƒNƒgæ“¾
+		// ã‚¢ãƒ€ãƒ—ã‚¿ãƒ¼ã®èª¬æ˜ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå–å¾—
 		adpt->GetDesc(&adesc);
 
 		std::wstring strDesc = adesc.Description;
 
-		// ’T‚µ‚½‚¢ƒAƒ_ƒvƒ^[‚Ì–¼‘O‚ğŠm”F
+		// æ¢ã—ãŸã„ã‚¢ãƒ€ãƒ—ã‚¿ãƒ¼ã®åå‰ã‚’ç¢ºèª
 		if (strDesc.find(L"NVIDIA") != std::string::npos) {
 			tmpAdapter = adpt;
 			break;
@@ -123,7 +123,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		}
 	}
 
-	// ƒEƒBƒ“ƒhƒE•\¦
+	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦è¡¨ç¤º
 	ShowWindow(hwnd, SW_SHOW);
 
 	MSG msg = {};
@@ -136,14 +136,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			DispatchMessage(&msg);
 		}
 
-		// ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚ªI‚í‚é‚Æ‚«‚Émessage‚ªWM_QUIT‚É‚È‚é
+		// ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ãŒçµ‚ã‚ã‚‹ã¨ãã«messageãŒWM_QUITã«ãªã‚‹
 		if (msg.message == WM_QUIT)
 		{
 			break;
 		}
 	}
 
-	// ‚à‚¤ƒNƒ‰ƒX‚Íg‚í‚È‚¢‚Ì‚Å“o˜^‰ğœ‚·‚é
+	// ã‚‚ã†ã‚¯ãƒ©ã‚¹ã¯ä½¿ã‚ãªã„ã®ã§ç™»éŒ²è§£é™¤ã™ã‚‹
 	UnregisterClass(w.lpszClassName, w.hInstance);
 
 	return 0;
