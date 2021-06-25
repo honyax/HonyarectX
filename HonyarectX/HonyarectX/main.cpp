@@ -40,7 +40,7 @@ const unsigned int window_height = 720;
 
 ID3D12Device* _dev = nullptr;
 IDXGIFactory6* _dxgiFactory = nullptr;
-IDXGISwapChain4* _swapchain = nullptr;
+IDXGISwapChain4* _swapChain = nullptr;
 ID3D12CommandAllocator* _cmdAllocator = nullptr;
 ID3D12GraphicsCommandList* _cmdList = nullptr;
 ID3D12CommandQueue* _cmdQueue = nullptr;
@@ -157,7 +157,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		&swapChainDesc,
 		nullptr,
 		nullptr,
-		(IDXGISwapChain1**)&_swapchain);
+		(IDXGISwapChain1**)&_swapChain);
 
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;		// レンダーターゲットビュー
@@ -168,12 +168,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&rtvHeaps));
 
 	DXGI_SWAP_CHAIN_DESC swcDesc = {};
-	result = _swapchain->GetDesc(&swcDesc);
+	result = _swapChain->GetDesc(&swcDesc);
 	std::vector<ID3D12Resource*> backBuffers(swcDesc.BufferCount);
 	D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
 	for (int idx = 0; idx < swcDesc.BufferCount; ++idx) {
 		// スワップチェーン上のバックバッファを取得
-		result = _swapchain->GetBuffer(idx, IID_PPV_ARGS(&backBuffers[idx]));
+		result = _swapChain->GetBuffer(idx, IID_PPV_ARGS(&backBuffers[idx]));
 
 		// レンダーターゲットビューを生成
 		_dev->CreateRenderTargetView(
@@ -190,19 +190,44 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	MSG msg = {};
 
-	while (true)
-	{
-		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-		{
+	while (true) {
+		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 
 		// アプリケーションが終わるときにmessageがWM_QUITになる
-		if (msg.message == WM_QUIT)
-		{
+		if (msg.message == WM_QUIT) {
 			break;
 		}
+
+		// DirectX処理
+		// バックバッファのインデックスを取得
+		auto bbIdx = _swapChain->GetCurrentBackBufferIndex();
+
+		// レンダーターゲットを指定
+		auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+		rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		_cmdList->OMSetRenderTargets(1, &rtvH, true, nullptr);
+
+		// 画面クリア命令
+		float clearColor[] = { 1.0f, 1.0f, 0.0f, 1.0f };	// 黄色
+		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+
+		// 命令のクローズ
+		_cmdList->Close();
+
+		// コマンドリストの実行
+		ID3D12CommandList* cmdLists[] = { _cmdList };
+		_cmdQueue->ExecuteCommandLists(1, cmdLists);
+
+		// キューをクリア
+		_cmdAllocator->Reset();
+		// 再びコマンドリストをためる準備
+		_cmdList->Reset(_cmdAllocator, nullptr);
+
+		// フリップ
+		_swapChain->Present(1, 0);
 	}
 
 	// もうクラスは使わないので登録解除する
