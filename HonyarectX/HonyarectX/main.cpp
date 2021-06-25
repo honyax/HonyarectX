@@ -138,6 +138,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;				// コマンドリストと合わせる
 	result = _dev->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(&_cmdQueue));
 
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+	swapChainDesc.Width = window_width;
+	swapChainDesc.Height = window_height;
+	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;				// ピクセルフォーマット
+	swapChainDesc.Stereo = false;									// ステレオ表示フラグ（3Dディスプレイのステレオモード）
+	swapChainDesc.SampleDesc.Count = 1;								// マルチサンプルの指定（Count = 1, Quality = 0でよい）
+	swapChainDesc.SampleDesc.Quality = 0;							// 
+	swapChainDesc.BufferUsage = DXGI_USAGE_BACK_BUFFER;				// 
+	swapChainDesc.BufferCount = 2;									// ダブルバッファーなので2
+	swapChainDesc.Scaling = DXGI_SCALING_STRETCH;					// バックバッファーは伸び縮み可能
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;		// フリップ後は速やかに破棄
+	swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;			// 特に指定なし
+	swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;	// ウィンドウ <=> フルスクリーン切り替え可能
+
+	result = _dxgiFactory->CreateSwapChainForHwnd(_cmdQueue,
+		hwnd,
+		&swapChainDesc,
+		nullptr,
+		nullptr,
+		(IDXGISwapChain1**)&_swapchain);
+
 	// ウィンドウ表示
 	ShowWindow(hwnd, SW_SHOW);
 
