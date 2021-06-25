@@ -43,6 +43,7 @@ IDXGIFactory6* _dxgiFactory = nullptr;
 IDXGISwapChain4* _swapchain = nullptr;
 ID3D12CommandAllocator* _cmdAllocator = nullptr;
 ID3D12GraphicsCommandList* _cmdList = nullptr;
+ID3D12CommandQueue* _cmdQueue = nullptr;
 
 #ifdef _DEBUG
 int main()
@@ -128,6 +129,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	HRESULT result = S_OK;
 	result = _dev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&_cmdAllocator));
 	result = _dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, _cmdAllocator, nullptr, IID_PPV_ARGS(&_cmdList));
+
+	// コマンドキューの作成
+	D3D12_COMMAND_QUEUE_DESC cmdQueueDesc = {};
+	cmdQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;				// タイムアウトなし
+	cmdQueueDesc.NodeMask = 0;										// アダプターを1つしか使わないときは0で良い
+	cmdQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;	// プライオリティは特に指定なし
+	cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;				// コマンドリストと合わせる
+	result = _dev->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(&_cmdQueue));
 
 	// ウィンドウ表示
 	ShowWindow(hwnd, SW_SHOW);
