@@ -1,8 +1,15 @@
 #include <Windows.h>
 #include <tchar.h>
+#include <d3d12.h>
+#include <dxgi1_6.h>
+#include <vector>
+
 #ifdef _DEBUG
 #include <iostream>
 #endif
+
+#pragma comment(lib, "d3d12.lib")
+#pragma comment(lib, "dxgi.lib")
 
 using namespace std;
 
@@ -30,6 +37,10 @@ LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
+
+ID3D12Device* _dev = nullptr;
+IDXGIFactory6* _dxgiFactory = nullptr;
+IDXGISwapChain4* _swapchain = nullptr;
 
 #ifdef _DEBUG
 int main()
@@ -71,6 +82,46 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		nullptr,				// メニューハンドル
 		w.hInstance,			// 呼び出しアプリケーションハンドル
 		nullptr);				// 追加パラメーター
+
+	if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory)))) {
+		if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(&_dxgiFactory)))) {
+			return -1;
+		}
+	}
+
+	std::vector<IDXGIAdapter*> adapters;
+	IDXGIAdapter* tmpAdapter = nullptr;
+	for (int i = 0; _dxgiFactory->EnumAdapters(i, &tmpAdapter) != DXGI_ERROR_NOT_FOUND; ++i) {
+		adapters.push_back(tmpAdapter);
+	}
+	for (auto adpt : adapters) {
+		DXGI_ADAPTER_DESC adesc = {};
+		// アダプターの説明オブジェクト取得
+		adpt->GetDesc(&adesc);
+
+		std::wstring strDesc = adesc.Description;
+
+		// 探したいアダプターの名前を確認
+		if (strDesc.find(L"NVIDIA") != std::string::npos) {
+			tmpAdapter = adpt;
+			break;
+		}
+	}
+
+	D3D_FEATURE_LEVEL levels[] = {
+		D3D_FEATURE_LEVEL_12_1,
+		D3D_FEATURE_LEVEL_12_0,
+		D3D_FEATURE_LEVEL_11_1,
+		D3D_FEATURE_LEVEL_11_0,
+	};
+
+	D3D_FEATURE_LEVEL featureLevel;
+	for (auto lvl : levels) {
+		if (D3D12CreateDevice(tmpAdapter, lvl, IID_PPV_ARGS(&_dev)) == S_OK) {
+			featureLevel = lvl;
+			break;
+		}
+	}
 
 	// ウィンドウ表示
 	ShowWindow(hwnd, SW_SHOW);
