@@ -159,6 +159,32 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		nullptr,
 		(IDXGISwapChain1**)&_swapchain);
 
+	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;		// レンダーターゲットビュー
+	heapDesc.NodeMask = 0;
+	heapDesc.NumDescriptors = 2;						// 表裏の2つ
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;	// シェーダ側から参照する必要が無い
+	ID3D12DescriptorHeap* rtvHeaps = nullptr;
+	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&rtvHeaps));
+
+	DXGI_SWAP_CHAIN_DESC swcDesc = {};
+	result = _swapchain->GetDesc(&swcDesc);
+	std::vector<ID3D12Resource*> backBuffers(swcDesc.BufferCount);
+	D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+	for (int idx = 0; idx < swcDesc.BufferCount; ++idx) {
+		// スワップチェーン上のバックバッファを取得
+		result = _swapchain->GetBuffer(idx, IID_PPV_ARGS(&backBuffers[idx]));
+
+		// レンダーターゲットビューを生成
+		_dev->CreateRenderTargetView(
+			backBuffers[idx],
+			nullptr,
+			handle);
+
+		// ポインタをずらす
+		handle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	}
+
 	// ウィンドウ表示
 	ShowWindow(hwnd, SW_SHOW);
 
