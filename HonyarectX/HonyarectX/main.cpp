@@ -251,6 +251,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		IID_PPV_ARGS(&vertBuff)
 	);
 
+	// 頂点情報のコピー（マップ）
+	DirectX::XMFLOAT3* vertMap = nullptr;
+	result = vertBuff->Map(0, nullptr, (void**)&vertMap);
+	std::copy(std::begin(vertices), std::end(vertices), vertMap);
+	vertBuff->Unmap(0, nullptr);
+
+	D3D12_VERTEX_BUFFER_VIEW vbView = {};
+	vbView.BufferLocation = vertBuff->GetGPUVirtualAddress();	// バッファの仮想アドレス
+	vbView.SizeInBytes = sizeof(vertices);						// 全バイト数
+	vbView.StrideInBytes = sizeof(vertices[0]);					// 1頂点あたりのバイト数
+
 	MSG msg = {};
 
 	while (true) {
