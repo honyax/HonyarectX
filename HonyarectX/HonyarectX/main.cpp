@@ -231,6 +231,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		// バックバッファのインデックスを取得
 		auto bbIdx = _swapChain->GetCurrentBackBufferIndex();
 
+		// リソースバリア設定
+		D3D12_RESOURCE_BARRIER barrierDesc = {};
+		barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;		// バリアの種別（状態遷移なのでTRANSITION）
+		barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;			// 特別なことはしないのでひとまずNONE
+		barrierDesc.Transition.pResource = backBuffers[bbIdx];			// リソースのアドレス
+		barrierDesc.Transition.Subresource = 0;									// サブリソース番号
+		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;		// 元の状態（PRESENT状態）
+		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;	// 後の状態（これからレンダーターゲットとして使うことを指定）
+		_cmdList->ResourceBarrier(1, &barrierDesc);
+
 		// レンダーターゲットを指定
 		auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
 		rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -239,6 +249,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		// 画面クリア命令
 		float clearColor[] = { 1.0f, 1.0f, 0.0f, 1.0f };	// 黄色
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+
+		// 再び、リソースバリアによってレンダーターゲット→PRESENT状態に移行する
+		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		_cmdList->ResourceBarrier(1, &barrierDesc);
 
 		// 命令のクローズ
 		_cmdList->Close();
