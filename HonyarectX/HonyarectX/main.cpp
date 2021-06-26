@@ -206,6 +206,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		handle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	}
 
+	// フェンス
+	ID3D12Fence* fence = nullptr;
+	UINT64 fenceVal = 0;
+	result = _dev->CreateFence(fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+
 	// ウィンドウ表示
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -241,6 +246,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		// コマンドリストの実行
 		ID3D12CommandList* cmdLists[] = { _cmdList };
 		_cmdQueue->ExecuteCommandLists(1, cmdLists);
+
+		// フェンスを使ってGPUの処理完了を待つ
+		_cmdQueue->Signal(fence, ++fenceVal);
+		if (fence->GetCompletedValue() != fenceVal) {
+			auto ev = CreateEvent(nullptr, false, false, nullptr);
+			fence->SetEventOnCompletion(fenceVal, ev);
+			WaitForSingleObject(ev, INFINITE);
+			CloseHandle(ev);
+		}
 
 		// キューをクリア
 		_cmdAllocator->Reset();
