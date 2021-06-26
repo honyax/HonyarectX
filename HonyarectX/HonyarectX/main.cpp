@@ -2,6 +2,7 @@
 #include <tchar.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
+#include <DirectXMath.h>
 #include <vector>
 
 #ifdef _DEBUG
@@ -12,6 +13,7 @@
 #pragma comment(lib, "dxgi.lib")
 
 using namespace std;
+using namespace DirectX;
 
 void DebugOutputFormatString(const char* format, ...)
 {
@@ -213,6 +215,41 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// ウィンドウ表示
 	ShowWindow(hwnd, SW_SHOW);
+
+	// 頂点の定義
+	DirectX::XMFLOAT3 vertices[] = {
+		{-1.0f, -1.0f, 0.0f},		// 左下
+		{-1.0f,  1.0f, 0.0f},		// 左上
+		{ 1.0f, -1.0f, 0.0f},		// 右下
+	};
+	// ヒープ設定
+	D3D12_HEAP_PROPERTIES heapProp = {};
+	heapProp.Type = D3D12_HEAP_TYPE_UPLOAD;		// CPUからアクセスする（マップで設定する）のでUPLOAD
+	heapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heapProp.CreationNodeMask = 0;
+	heapProp.VisibleNodeMask = 0;
+	// リソース設定
+	D3D12_RESOURCE_DESC resDesc = {};
+	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	resDesc.Width = sizeof(vertices);
+	resDesc.Height = 1;
+	resDesc.DepthOrArraySize = 1;
+	resDesc.MipLevels = 1;
+	resDesc.Format = DXGI_FORMAT_UNKNOWN;
+	resDesc.SampleDesc.Count = 1;
+	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	// 頂点バッファ作成
+	ID3D12Resource* vertBuff = nullptr;
+	result = _dev->CreateCommittedResource(
+		&heapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&resDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&vertBuff)
+	);
 
 	MSG msg = {};
 
