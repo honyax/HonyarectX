@@ -18,7 +18,7 @@ void DebugOutputFormatString(const char* format, ...)
 #ifdef _DEBUG
 	va_list valist;
 	va_start(valist, format);
-	printf(format, valist);
+	vprintf(format, valist);
 #endif
 }
 
@@ -44,6 +44,15 @@ IDXGISwapChain4* _swapChain = nullptr;
 ID3D12CommandAllocator* _cmdAllocator = nullptr;
 ID3D12GraphicsCommandList* _cmdList = nullptr;
 ID3D12CommandQueue* _cmdQueue = nullptr;
+
+void EnableDebugLayer()
+{
+	ID3D12Debug* debugLayer = nullptr;
+	auto result = D3D12GetDebugInterface(IID_PPV_ARGS(&debugLayer));
+
+	debugLayer->EnableDebugLayer();		// デバッグレイヤを有効化
+	debugLayer->Release();				// 有効化したらインターフェースを解放
+}
 
 #ifdef _DEBUG
 int main()
@@ -86,11 +95,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		w.hInstance,			// 呼び出しアプリケーションハンドル
 		nullptr);				// 追加パラメーター
 
+#ifdef _DEBUG
+	// デバッグレイヤーをONに
+	// デバイス生成時前にやっておかないと、デバイス生成後にやるとデバイスがロストしてしまう
+	EnableDebugLayer();
+#endif // _DEBUG
+
+#ifdef _DEBUG
 	if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory)))) {
 		if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(&_dxgiFactory)))) {
 			return -1;
 		}
 	}
+#else
+	if (FAILED(CreateDXGIFactory(IID_PPV_ARGS(&_dxgiFactory)))) {
+		return -1;
+	}
+#endif // _DEBUG
 
 	std::vector<IDXGIAdapter*> adapters;
 	IDXGIAdapter* tmpAdapter = nullptr;
