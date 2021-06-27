@@ -367,6 +367,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	ID3D12PipelineState* pipelineState = nullptr;
 	result = _dev->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&pipelineState));
 
+	// ビューポート
+	D3D12_VIEWPORT viewport = {};
+	viewport.Width = window_width;		// 出力先の幅（ピクセル数）
+	viewport.Height = window_height;	// 出力先の高さ（ピクセル数）
+	viewport.TopLeftX = 0;				// 出力先の左上座標X
+	viewport.TopLeftY = 0;				// 出力先の左上座標Y
+	viewport.MaxDepth = 1.0f;			// 深度最大値
+	viewport.MinDepth = 0.0f;			// 深度最小値
+
+	// シザー矩形
+	D3D12_RECT scissorRect = {};
+	scissorRect.top = 0;									// 切り抜き上座標
+	scissorRect.left = 0;									// 切り抜き左座標
+	scissorRect.right = scissorRect.left + window_width;	// 切り抜き右座標
+	scissorRect.bottom = scissorRect.top + window_height;	// 切り抜き下座標
+
 	MSG msg = {};
 
 	while (true) {
@@ -394,6 +410,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;	// 後の状態（これからレンダーターゲットとして使うことを指定）
 		_cmdList->ResourceBarrier(1, &barrierDesc);
 
+		_cmdList->SetPipelineState(pipelineState);
+
 		// レンダーターゲットを指定
 		auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
 		rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -402,6 +420,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		// 画面クリア命令
 		float clearColor[] = { 1.0f, 1.0f, 0.0f, 1.0f };	// 黄色
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+
+		_cmdList->RSSetViewports(1, &viewport);
+		_cmdList->RSSetScissorRects(1, &scissorRect);
+		_cmdList->SetGraphicsRootSignature(rootSignature);
+
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		_cmdList->IASetVertexBuffers(0, 1, &vbView);
+
+		_cmdList->DrawInstanced(3, 1, 0, 0);
 
 		// 再び、リソースバリアによってレンダーターゲット→PRESENT状態に移行する
 		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
