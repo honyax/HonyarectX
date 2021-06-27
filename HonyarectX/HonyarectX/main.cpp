@@ -265,6 +265,30 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	vbView.SizeInBytes = sizeof(vertices);						// 全バイト数
 	vbView.StrideInBytes = sizeof(vertices[0]);					// 1頂点あたりのバイト数
 
+	// インデックス情報
+	unsigned short indices[] = { 0, 1, 2,  2, 1, 3 };
+	ID3D12Resource* idxBuff = nullptr;
+	// 設定は、バッファのサイズ以外頂点バッファの設定を使いまわしてOKっぽい
+	resDesc.Width = sizeof(indices);
+	result = _dev->CreateCommittedResource(
+		&heapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&resDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&idxBuff)
+	);
+	// 作ったバッファにインデックスデータをコピー
+	unsigned short* mappedIdx = nullptr;
+	idxBuff->Map(0, nullptr, (void**)&mappedIdx);
+	std::copy(std::begin(indices), std::end(indices), mappedIdx);
+	idxBuff->Unmap(0, nullptr);
+	// インデックスバッファビューを作成
+	D3D12_INDEX_BUFFER_VIEW ibView = {};
+	ibView.BufferLocation = idxBuff->GetGPUVirtualAddress();
+	ibView.Format = DXGI_FORMAT_R16_UINT;
+	ibView.SizeInBytes = sizeof(indices);
+
 	ID3DBlob* vsBlob = nullptr;
 	ID3DBlob* psBlob = nullptr;
 	ID3DBlob* errorBlob = nullptr;
@@ -426,10 +450,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->RSSetScissorRects(1, &scissorRect);
 		_cmdList->SetGraphicsRootSignature(rootSignature);
 
-		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		_cmdList->IASetVertexBuffers(0, 1, &vbView);
+		_cmdList->IASetIndexBuffer(&ibView);
 
-		_cmdList->DrawInstanced(4, 1, 0, 0);
+		//_cmdList->DrawInstanced(4, 1, 0, 0);
+		_cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
 		// 再び、リソースバリアによってレンダーターゲット→PRESENT状態に移行する
 		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
