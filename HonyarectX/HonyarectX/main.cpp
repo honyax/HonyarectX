@@ -220,9 +220,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// 頂点の定義
 	DirectX::XMFLOAT3 vertices[] = {
-		{-1.0f, -1.0f, 0.0f},		// 左下
-		{-1.0f,  1.0f, 0.0f},		// 左上
-		{ 1.0f, -1.0f, 0.0f},		// 右下
+		{-0.5f, -0.7f, 0.0f},		// 左下
+		{ 0.0f,  0.7f, 0.0f},		// 左上
+		{ 0.5f, -0.7f, 0.0f},		// 右下
 	};
 	// ヒープ設定
 	D3D12_HEAP_PROPERTIES heapProp = {};
