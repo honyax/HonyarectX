@@ -220,9 +220,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// 頂点の定義
 	DirectX::XMFLOAT3 vertices[] = {
-		{-0.5f, -0.7f, 0.0f},		// 左下
-		{ 0.0f,  0.7f, 0.0f},		// 左上
-		{ 0.5f, -0.7f, 0.0f},		// 右下
+		{-0.4f, -0.7f, 0.0f},		// 左下
+		{-0.4f,  0.7f, 0.0f},		// 左上
+		{ 0.4f, -0.7f, 0.0f},		// 右下
+		{ 0.4f,  0.7f, 0.0f},		// 右上
 	};
 	// ヒープ設定
 	D3D12_HEAP_PROPERTIES heapProp = {};
@@ -425,10 +426,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->RSSetScissorRects(1, &scissorRect);
 		_cmdList->SetGraphicsRootSignature(rootSignature);
 
-		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		_cmdList->IASetVertexBuffers(0, 1, &vbView);
 
-		_cmdList->DrawInstanced(3, 1, 0, 0);
+		_cmdList->DrawInstanced(4, 1, 0, 0);
 
 		// 再び、リソースバリアによってレンダーターゲット→PRESENT状態に移行する
 		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
