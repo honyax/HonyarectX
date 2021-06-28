@@ -1,12 +1,9 @@
-struct Output {
-	float4 pos:POSITION;
-	float4 svpos:SV_POSITION;
-};
+#include "BasicShaderHeader.hlsli"
 
-Output BasicVS(float4 pos : POSITION)
+BasicType BasicVS(float4 pos : POSITION, float2 uv : TEXCOORD)
 {
-	Output output;
-	output.pos = pos;
+	BasicType output;
 	output.svpos = pos;
+	output.uv = uv;
 	return output;
 }
