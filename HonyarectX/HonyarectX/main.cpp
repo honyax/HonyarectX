@@ -218,13 +218,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// ウィンドウ表示
 	ShowWindow(hwnd, SW_SHOW);
 
-	// 頂点の定義
-	DirectX::XMFLOAT3 vertices[] = {
-		{-0.4f, -0.7f, 0.0f},		// 左下
-		{-0.4f,  0.7f, 0.0f},		// 左上
-		{ 0.4f, -0.7f, 0.0f},		// 右下
-		{ 0.4f,  0.7f, 0.0f},		// 右上
+	struct Vertex {
+		XMFLOAT3 pos;	// XYZ座標
+		XMFLOAT2 uv;	// UV座標
 	};
+
+	// 頂点の定義
+	Vertex vertices[] = {
+		{ {-0.4f, -0.7f, 0.0f}, {0.0f, 1.0f} },	// 左下
+		{ {-0.4f,  0.7f, 0.0f}, {0.0f, 0.0f} },	// 左上
+		{ { 0.4f, -0.7f, 0.0f}, {1.0f, 1.0f} },	// 右下
+		{ { 0.4f,  0.7f, 0.0f}, {1.0f, 0.0f} },	// 右上
+	};
+
 	// ヒープ設定
 	D3D12_HEAP_PROPERTIES heapProp = {};
 	heapProp.Type = D3D12_HEAP_TYPE_UPLOAD;		// CPUからアクセスする（マップで設定する）のでUPLOAD
@@ -255,7 +261,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	);
 
 	// 頂点情報のコピー（マップ）
-	DirectX::XMFLOAT3* vertMap = nullptr;
+	Vertex* vertMap = nullptr;
 	result = vertBuff->Map(0, nullptr, (void**)&vertMap);
 	std::copy(std::begin(vertices), std::end(vertices), vertMap);
 	vertBuff->Unmap(0, nullptr);
