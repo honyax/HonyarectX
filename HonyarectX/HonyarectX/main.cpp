@@ -428,6 +428,36 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		rgba.A = 255;
 	}
 
+	// WriteToSubresourceで転送するためのヒープ設定
+	D3D12_HEAP_PROPERTIES texHeapProp = {};
+	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;							// 特殊な設定なのでdefaultでもuploadでもない
+	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;	// ライトバックで
+	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;			// 転送がL0つまりCPU側から直で
+	texHeapProp.CreationNodeMask = 0;									// 単一アダプタのため0
+	texHeapProp.VisibleNodeMask = 0;									// 単一アダプタのため0
+
+	D3D12_RESOURCE_DESC texResDesc = {};
+	texResDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;						// RGBAフォーマット
+	texResDesc.Width = 256;												// 幅
+	texResDesc.Height = 256;											// 高さ
+	texResDesc.DepthOrArraySize = 1;									// 2Dで配列でもないので1
+	texResDesc.SampleDesc.Count = 1;									// 通常テクスチャなのでアンチエイリアシングしない
+	texResDesc.SampleDesc.Quality = 0;									// クオリティは最低
+	texResDesc.MipLevels = 1;											// ミップマップしないのでミップ数は1つ
+	texResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;			// 2Dテクスチャ用
+	texResDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;					// レイアウトは決定しない
+	texResDesc.Flags = D3D12_RESOURCE_FLAG_NONE;						// 特にフラグなし
+
+	ID3D12Resource* texBuff = nullptr;
+	result = _dev->CreateCommittedResource(
+		&texHeapProp,
+		D3D12_HEAP_FLAG_NONE,											// 特に指定なし
+		&texResDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,						// テクスチャ用指定
+		nullptr,
+		IID_PPV_ARGS(&texBuff)
+	);
+
 	MSG msg = {};
 	unsigned int frame = 0;
 	while (true) {
