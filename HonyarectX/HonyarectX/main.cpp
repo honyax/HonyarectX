@@ -466,6 +466,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		sizeof(TexRGBA) * textureData.size()	// 全サイズ
 	);
 
+	// ディスクリプタヒープを作る
+	ID3D12DescriptorHeap* texDescHeap = nullptr;
+	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
+	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;		// シェーダから見えるように
+	descHeapDesc.NodeMask = 0;											// マスクは0
+	descHeapDesc.NumDescriptors = 1;									// ビューは今のところ1つだけ
+	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;			// シェーダリソースビュー（および定数、UAVも）
+	result = _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&texDescHeap));		// 生成
+
+	// 通常テクスチャビュー作成
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;						// RGBA（0.0f～1.0fに正規化）
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;				// 2Dテクスチャ
+	srvDesc.Texture2D.MipLevels = 1;									// ミップマップは使用しないので1
+	_dev->CreateShaderResourceView(
+		texBuff,														// ビューと関連付けるバッファ
+		&srvDesc,														// 先ほど設定したテクスチャ設定情報
+		texDescHeap->GetCPUDescriptorHandleForHeapStart()				// ヒープのどこに割り当てるか
+	);
+
 	MSG msg = {};
 	unsigned int frame = 0;
 	while (true) {
