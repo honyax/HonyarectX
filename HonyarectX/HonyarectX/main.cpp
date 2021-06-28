@@ -416,6 +416,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	scissorRect.right = scissorRect.left + window_width;	// 切り抜き右座標
 	scissorRect.bottom = scissorRect.top + window_height;	// 切り抜き下座標
 
+	struct TexRGBA
+	{
+		UINT8 R, G, B, A;
+	};
+	std::vector<TexRGBA> textureData(256 * 256);
+	for (auto rgba : textureData) {
+		rgba.R = rand() % 256;
+		rgba.G = rand() % 256;
+		rgba.B = rand() % 256;
+		rgba.A = 255;
+	}
+
 	MSG msg = {};
 	unsigned int frame = 0;
 	while (true) {
