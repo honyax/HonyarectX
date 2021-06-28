@@ -568,6 +568,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->IASetVertexBuffers(0, 1, &vbView);
 		_cmdList->IASetIndexBuffer(&ibView);
 
+		_cmdList->SetGraphicsRootSignature(rootSignature);
+		_cmdList->SetDescriptorHeaps(1, &texDescHeap);
+		_cmdList->SetGraphicsRootDescriptorTable(0, texDescHeap->GetGPUDescriptorHandleForHeapStart());
+
 		//_cmdList->DrawInstanced(4, 1, 0, 0);
 		_cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
