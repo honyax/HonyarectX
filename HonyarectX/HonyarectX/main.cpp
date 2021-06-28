@@ -458,6 +458,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		IID_PPV_ARGS(&texBuff)
 	);
 
+	result = texBuff->WriteToSubresource(
+		0,
+		nullptr,								// 全領域へコピー
+		textureData.data(),						// 元データアドレス
+		sizeof(TexRGBA) * 256,					// 1ラインサイズ
+		sizeof(TexRGBA) * textureData.size()	// 全サイズ
+	);
+
 	MSG msg = {};
 	unsigned int frame = 0;
 	while (true) {
