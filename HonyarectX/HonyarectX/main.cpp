@@ -409,7 +409,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	scissorRect.bottom = scissorRect.top + window_height;	// 切り抜き下座標
 
 	MSG msg = {};
-
+	unsigned int frame = 0;
 	while (true) {
 		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
@@ -443,7 +443,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->OMSetRenderTargets(1, &rtvH, true, nullptr);
 
 		// 画面クリア命令
-		float clearColor[] = { 1.0f, 1.0f, 0.0f, 1.0f };	// 黄色
+		frame++;
+		float r, g, b;
+		r = 1.0f;
+		g = 1.0f;
+		b = (float)(0xff & frame) / 255.0f;
+		float clearColor[] = { r, g, b, 1.0f };
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
 
 		_cmdList->RSSetViewports(1, &viewport);
