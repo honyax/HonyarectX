@@ -6,6 +6,7 @@
 #include <vector>
 #include <d3dcompiler.h>
 #include <DirectXTex.h>
+#include <d3dx12.h>
 
 #ifdef _DEBUG
 #include <iostream>
@@ -244,23 +245,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	};
 
 	// ヒープ設定
-	D3D12_HEAP_PROPERTIES heapProp = {};
-	heapProp.Type = D3D12_HEAP_TYPE_UPLOAD;		// CPUからアクセスする（マップで設定する）のでUPLOAD
-	heapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-	heapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-	heapProp.CreationNodeMask = 0;
-	heapProp.VisibleNodeMask = 0;
+	// CPUからアクセスする（マップで設定する）のでUPLOAD
+	CD3DX12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD, 0, 0);
 	// リソース設定
-	D3D12_RESOURCE_DESC resDesc = {};
-	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	resDesc.Width = sizeof(vertices);
-	resDesc.Height = 1;
-	resDesc.DepthOrArraySize = 1;
-	resDesc.MipLevels = 1;
-	resDesc.Format = DXGI_FORMAT_UNKNOWN;
-	resDesc.SampleDesc.Count = 1;
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertices));
 	// 頂点バッファ作成
 	ID3D12Resource* vertBuff = nullptr;
 	result = _dev->CreateCommittedResource(
@@ -574,13 +562,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		auto bbIdx = _swapChain->GetCurrentBackBufferIndex();
 
 		// リソースバリア設定
-		D3D12_RESOURCE_BARRIER barrierDesc = {};
-		barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;		// バリアの種別（状態遷移なのでTRANSITION）
-		barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;			// 特別なことはしないのでひとまずNONE
-		barrierDesc.Transition.pResource = backBuffers[bbIdx];			// リソースのアドレス
-		barrierDesc.Transition.Subresource = 0;									// サブリソース番号
-		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;		// 元の状態（PRESENT状態）
-		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;	// 後の状態（これからレンダーターゲットとして使うことを指定）
+		// PRESENT状態からレンダーターゲット状態へ
+		CD3DX12_RESOURCE_BARRIER barrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(
+			backBuffers[bbIdx], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
 		_cmdList->ResourceBarrier(1, &barrierDesc);
 
 		_cmdList->SetPipelineState(pipelineState);
@@ -615,8 +600,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
 		// 再び、リソースバリアによってレンダーターゲット→PRESENT状態に移行する
-		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		barrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(
+			backBuffers[bbIdx], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 		_cmdList->ResourceBarrier(1, &barrierDesc);
 
 		// 命令のクローズ
