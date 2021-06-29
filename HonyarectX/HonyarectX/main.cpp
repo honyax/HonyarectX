@@ -5,14 +5,18 @@
 #include <DirectXMath.h>
 #include <vector>
 #include <d3dcompiler.h>
+#include <DirectXTex.h>
 
 #ifdef _DEBUG
 #include <iostream>
 #endif
 
+#pragma comment(lib, "DirectXTex.lib")
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+
+//#define NOISE_TEXTURE
 
 using namespace std;
 using namespace DirectX;
@@ -196,14 +200,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	result = _swapChain->GetDesc(&swcDesc);
 	std::vector<ID3D12Resource*> backBuffers(swcDesc.BufferCount);
 	D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-	for (int idx = 0; idx < swcDesc.BufferCount; ++idx) {
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;	// ガンマ補正あり（sRGB）
+	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	for (UINT idx = 0; idx < swcDesc.BufferCount; ++idx) {
 		// スワップチェーン上のバックバッファを取得
 		result = _swapChain->GetBuffer(idx, IID_PPV_ARGS(&backBuffers[idx]));
 
 		// レンダーターゲットビューを生成
 		_dev->CreateRenderTargetView(
 			backBuffers[idx],
+#ifdef NOISE_TEXTURE
 			nullptr,
+#else
+			&rtvDesc,
+#endif
 			handle);
 
 		// ポインタをずらす
@@ -446,6 +457,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	scissorRect.right = scissorRect.left + window_width;	// 切り抜き右座標
 	scissorRect.bottom = scissorRect.top + window_height;	// 切り抜き下座標
 
+#ifdef NOISE_TEXTURE
 	// ノイズテクスチャの作成
 	struct TexRGBA
 	{
@@ -458,6 +470,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		rgba.B = rand() % 256;
 		rgba.A = 255;
 	}
+#else
+	// WICテクスチャのロード
+	TexMetadata metadata = {};
+	ScratchImage scratchImg = {};
+	result = LoadFromWICFile(L"img/textest.png", WIC_FLAGS_NONE, &metadata, scratchImg);
+	auto img = scratchImg.GetImage(0, 0, 0);							// 生データ抽出
+#endif
 
 	// WriteToSubresourceで転送するためのヒープ設定
 	D3D12_HEAP_PROPERTIES texHeapProp = {};
@@ -468,14 +487,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	texHeapProp.VisibleNodeMask = 0;									// 単一アダプタのため0
 
 	D3D12_RESOURCE_DESC texResDesc = {};
+#ifdef NOISE_TEXTURE
 	texResDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;						// RGBAフォーマット
 	texResDesc.Width = 256;												// 幅
 	texResDesc.Height = 256;											// 高さ
 	texResDesc.DepthOrArraySize = 1;									// 2Dで配列でもないので1
-	texResDesc.SampleDesc.Count = 1;									// 通常テクスチャなのでアンチエイリアシングしない
-	texResDesc.SampleDesc.Quality = 0;									// クオリティは最低
 	texResDesc.MipLevels = 1;											// ミップマップしないのでミップ数は1つ
 	texResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;			// 2Dテクスチャ用
+#else
+	texResDesc.Format = metadata.format;
+	texResDesc.Width = metadata.width;									// 幅
+	texResDesc.Height = metadata.height;								// 高さ
+	texResDesc.DepthOrArraySize = static_cast<UINT16>(metadata.arraySize);
+	texResDesc.MipLevels = static_cast<UINT16>(metadata.mipLevels);
+	texResDesc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension);
+#endif
+	texResDesc.SampleDesc.Count = 1;									// 通常テクスチャなのでアンチエイリアシングしない
+	texResDesc.SampleDesc.Quality = 0;									// クオリティは最低
 	texResDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;					// レイアウトは決定しない
 	texResDesc.Flags = D3D12_RESOURCE_FLAG_NONE;						// 特にフラグなし
 
@@ -492,9 +520,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	result = texBuff->WriteToSubresource(
 		0,
 		nullptr,								// 全領域へコピー
+#ifdef NOISE_TEXTURE
 		textureData.data(),						// 元データアドレス
 		sizeof(TexRGBA) * 256,					// 1ラインサイズ
 		sizeof(TexRGBA) * textureData.size()	// 全サイズ
+#else
+		img->pixels,
+		img->rowPitch,
+		img->slicePitch
+#endif
 	);
 
 	// ディスクリプタヒープを作る
@@ -508,7 +542,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// 通常テクスチャビュー作成
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+#ifdef NOISE_TEXTURE
 	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;						// RGBA（0.0f～1.0fに正規化）
+#else
+	srvDesc.Format = metadata.format;
+#endif
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;				// 2Dテクスチャ
 	srvDesc.Texture2D.MipLevels = 1;									// ミップマップは使用しないので1
