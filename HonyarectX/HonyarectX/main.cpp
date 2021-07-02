@@ -524,7 +524,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	);
 
 	// 定数バッファ作成
-	auto worldMat = XMMatrixRotationY(XM_PIDIV4) * XMMatrixRotationZ(XM_PIDIV4);
+	float angle = XM_PIDIV4;
+	auto worldMat = XMMatrixRotationY(angle) * XMMatrixRotationZ(angle);
 	XMFLOAT3 eye(0, 0, -5);
 	XMFLOAT3 target(0, 0, 0);
 	XMFLOAT3 up(0, 1, 0);
@@ -598,6 +599,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		if (msg.message == WM_QUIT) {
 			break;
 		}
+
+		// 対象を回転
+		angle += 0.1f;
+		worldMat = XMMatrixRotationY(angle) * XMMatrixRotationZ(angle);
+		*mapMatrix = worldMat * viewMat * projMat;
 
 		// DirectX処理
 		// バックバッファのインデックスを取得
