@@ -238,10 +238,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// 頂点の定義
 	Vertex vertices[] = {
-		{ {   0.0f, 100.0f, 0.0f}, {0.0f, 1.0f} },	// 左下
-		{ {   0.0f,   0.0f, 0.0f}, {0.0f, 0.0f} },	// 左上
-		{ { 100.0f, 100.0f, 0.0f}, {1.0f, 1.0f} },	// 右下
-		{ { 100.0f,   0.0f, 0.0f}, {1.0f, 0.0f} },	// 右上
+		{ {-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f} },	// 左下
+		{ {-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f} },	// 左上
+		{ { 1.0f, -1.0f, 0.0f}, {1.0f, 1.0f} },	// 右下
+		{ { 1.0f,  1.0f, 0.0f}, {1.0f, 0.0f} },	// 右上
 	};
 
 	// ヒープ設定
@@ -524,14 +524,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	);
 
 	// 定数バッファ作成
-	XMMATRIX matrix = XMMatrixIdentity();
-	matrix.r[0].m128_f32[0] = 2.0f / window_width;
-	matrix.r[1].m128_f32[1] = -2.0f / window_height;
-	matrix.r[3].m128_f32[0] = -1.0f;
-	matrix.r[3].m128_f32[1] = 1.0f;
+	auto worldMat = XMMatrixRotationY(XM_PIDIV4) * XMMatrixRotationZ(XM_PIDIV4);
+	XMFLOAT3 eye(0, 0, -5);
+	XMFLOAT3 target(0, 0, 0);
+	XMFLOAT3 up(0, 1, 0);
+	auto viewMat = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
+	auto projMat = XMMatrixPerspectiveFovLH(
+		XM_PIDIV2,								// 画角90°
+		static_cast<float>(window_width) / static_cast<float>(window_height),	// アスペクト比
+		1.0f,									// 近い方
+		10.0f									// 遠い方
+	);
 	ID3D12Resource* constBuff = nullptr;
 	CD3DX12_HEAP_PROPERTIES constHeapProp(D3D12_HEAP_TYPE_UPLOAD);
-	CD3DX12_RESOURCE_DESC constResDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(matrix) + 0xff) & ~0xFF);
+	CD3DX12_RESOURCE_DESC constResDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(XMMATRIX) + 0xff) & ~0xFF);
 	result = _dev->CreateCommittedResource(
 		&constHeapProp,
 		D3D12_HEAP_FLAG_NONE,
@@ -543,7 +549,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	XMMATRIX* mapMatrix;												// マップ先を示すポインタ
 	result = constBuff->Map(0, nullptr, (void**)&mapMatrix);			// マップ
-	*mapMatrix = matrix;												// 行列の内容をコピー
+	*mapMatrix = worldMat * viewMat * projMat;
 
 	// ディスクリプタヒープを作る
 	ID3D12DescriptorHeap* basicDescHeap = nullptr;
