@@ -230,6 +230,29 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// ウィンドウ表示
 	ShowWindow(hwnd, SW_SHOW);
 
+	// PMDヘッダ構造体
+	struct PMDHeader {
+		float version;			// 例：00 00 80 3F == 1.00
+		char model_name[20];	// モデル名
+		char comment[256];		// モデルコメント
+	};
+	char signature[3];
+	PMDHeader pmdHeader = {};
+	FILE* fp;
+	auto err = fopen_s(&fp, "Model/初音ミク.pmd", "rb");
+	if (fp == nullptr) {
+		char strerr[256];
+		strerror_s(strerr, 256, err);
+		wchar_t strerr2[256];
+		size_t strCount;
+		mbstowcs_s(&strCount, strerr2, strerr, sizeof(strerr));
+		MessageBox(hwnd, strerr2, L"Open Error", MB_ICONERROR);
+		return -1;
+	}
+	fread(signature, sizeof(signature), 1, fp);
+	fread(&pmdHeader, sizeof(pmdHeader), 1, fp);
+	fclose(fp);
+
 	// 頂点データ構造体
 	struct Vertex {
 		XMFLOAT3 pos;	// XYZ座標
@@ -572,7 +595,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;				// 2Dテクスチャ
 	srvDesc.Texture2D.MipLevels = 1;									// ミップマップは使用しないので1
 
-	// ディスクリプタの戦闘ハンドルを取得しておく
+	// ディスクリプタの先頭ハンドルを取得しておく
 	auto basicHeapHandle = basicDescHeap->GetCPUDescriptorHandleForHeapStart();
 	// シェーダリソースビューの作成
 	_dev->CreateShaderResourceView(
