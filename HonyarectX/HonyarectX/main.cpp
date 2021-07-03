@@ -271,6 +271,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	vector<unsigned char> vertices(vertNum * pmdvertex_size);	// バッファの確保
 	fread(vertices.data(), vertices.size(), 1, fp);				// 読み込み
 
+	unsigned int indicesNum;				// インデックス数
+	fread(&indicesNum, sizeof(indicesNum), 1, fp);
+	vector<unsigned short> indices(indicesNum);					// インデックス用バッファ
+	fread(indices.data(), indices.size() * sizeof(indices[0]), 1, fp);
 
 	fclose(fp);
 
@@ -302,10 +306,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	vbView.StrideInBytes = pmdvertex_size;						// 1頂点あたりのバイト数
 
 	// インデックス情報
-	unsigned short indices[] = { 0, 1, 2,  2, 1, 3 };
 	ID3D12Resource* idxBuff = nullptr;
 	// 設定は、バッファのサイズ以外頂点バッファの設定を使いまわしてOKっぽい
-	resDesc.Width = sizeof(indices);
+	resDesc.Width = indices.size() * sizeof(indices[0]);
 	result = _dev->CreateCommittedResource(
 		&heapProp,
 		D3D12_HEAP_FLAG_NONE,
@@ -323,7 +326,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	D3D12_INDEX_BUFFER_VIEW ibView = {};
 	ibView.BufferLocation = idxBuff->GetGPUVirtualAddress();
 	ibView.Format = DXGI_FORMAT_R16_UINT;
-	ibView.SizeInBytes = sizeof(indices);
+	ibView.SizeInBytes = indices.size() * sizeof(indices[0]);
 
 	ID3DBlob* vsBlob = nullptr;
 	ID3DBlob* psBlob = nullptr;
@@ -666,8 +669,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->RSSetScissorRects(1, &scissorRect);
 		_cmdList->SetGraphicsRootSignature(rootSignature);
 
-		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// 三角形の集合として描画
-		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);			// 点の集合として描画
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);		// 三角形の集合として描画
+		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);		// 点の集合として描画
 		_cmdList->IASetVertexBuffers(0, 1, &vbView);
 		_cmdList->IASetIndexBuffer(&ibView);
 
@@ -675,9 +678,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->SetDescriptorHeaps(1, &basicDescHeap);
 		_cmdList->SetGraphicsRootDescriptorTable(0, basicDescHeap->GetGPUDescriptorHandleForHeapStart());
 
-		//_cmdList->DrawInstanced(4, 1, 0, 0);
-		//_cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
-		_cmdList->DrawInstanced(vertNum, 1, 0, 0);
+		//_cmdList->DrawInstanced(vertNum, 1, 0, 0);
+		_cmdList->DrawIndexedInstanced(indicesNum, 1, 0, 0, 0);
 
 		// 再び、リソースバリアによってレンダーターゲット→PRESENT状態に移行する
 		barrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(
