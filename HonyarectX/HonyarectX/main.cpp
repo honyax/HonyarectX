@@ -251,27 +251,34 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	}
 	fread(signature, sizeof(signature), 1, fp);
 	fread(&pmdHeader, sizeof(pmdHeader), 1, fp);
+
+#if 0
+	// PMD頂点構造体
+	struct PMDVertex {
+		XMFLOAT3 pos;				// 頂点座標　　：12バイト
+		XMFLOAT3 normal;			// 法線ベクトル：12バイト
+		XMFLOAT2 uv;				// uv座標　　　：8バイト
+		unsigned short boneNo[2];	// ボーン番号　：4バイト
+		unsigned char boneWeight;	// ボーン影響度：1バイト
+		unsigned char edgeFlg;		// 輪郭線フラグ：1バイト
+	};
+#endif
+
+	unsigned int vertNum;					// 頂点数
+	fread(&vertNum, sizeof(vertNum), 1, fp);
+
+	constexpr size_t pmdvertex_size = 38;						// 頂点1つあたりのサイズ
+	vector<unsigned char> vertices(vertNum * pmdvertex_size);	// バッファの確保
+	fread(vertices.data(), vertices.size(), 1, fp);				// 読み込み
+
+
 	fclose(fp);
-
-	// 頂点データ構造体
-	struct Vertex {
-		XMFLOAT3 pos;	// XYZ座標
-		XMFLOAT2 uv;	// UV座標
-	};
-
-	// 頂点の定義
-	Vertex vertices[] = {
-		{ {-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f} },	// 左下
-		{ {-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f} },	// 左上
-		{ { 1.0f, -1.0f, 0.0f}, {1.0f, 1.0f} },	// 右下
-		{ { 1.0f,  1.0f, 0.0f}, {1.0f, 0.0f} },	// 右上
-	};
 
 	// ヒープ設定
 	// CPUからアクセスする（マップで設定する）のでUPLOAD
 	CD3DX12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD, 0, 0);
 	// リソース設定
-	CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertices));
+	CD3DX12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer(vertices.size());
 	// 頂点バッファ作成
 	ID3D12Resource* vertBuff = nullptr;
 	result = _dev->CreateCommittedResource(
@@ -284,15 +291,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	);
 
 	// 頂点情報のコピー（マップ）
-	Vertex* vertMap = nullptr;
+	unsigned char* vertMap = nullptr;
 	result = vertBuff->Map(0, nullptr, (void**)&vertMap);
 	std::copy(std::begin(vertices), std::end(vertices), vertMap);
 	vertBuff->Unmap(0, nullptr);
 
 	D3D12_VERTEX_BUFFER_VIEW vbView = {};
 	vbView.BufferLocation = vertBuff->GetGPUVirtualAddress();	// バッファの仮想アドレス
-	vbView.SizeInBytes = sizeof(vertices);						// 全バイト数
-	vbView.StrideInBytes = sizeof(vertices[0]);					// 1頂点あたりのバイト数
+	vbView.SizeInBytes = vertices.size();						// 全バイト数
+	vbView.StrideInBytes = pmdvertex_size;						// 1頂点あたりのバイト数
 
 	// インデックス情報
 	unsigned short indices[] = { 0, 1, 2,  2, 1, 3 };
@@ -360,7 +367,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BONE_NO",  0, DXGI_FORMAT_R16G16_UINT,     0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "WEIGHT",   0, DXGI_FORMAT_R8_UINT,         0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "EDGE_FLG", 0, DXGI_FORMAT_R8_UINT,         0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 
 	// グラフィックスパイプラインステートの設定
