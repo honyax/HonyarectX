@@ -4,6 +4,7 @@ BasicType BasicVS(float4 pos : POSITION, float4 normal : NORMAL, float2 uv : TEX
 {
 	BasicType output;
 	output.svpos = mul(mat, pos);
+	output.normal = normal;
 	output.uv = uv;
 	return output;
 }
