@@ -558,17 +558,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	);
 
 	// 定数バッファ作成
-	float angle = XM_PIDIV4;
-	auto worldMat = XMMatrixRotationY(angle) * XMMatrixRotationZ(angle);
-	XMFLOAT3 eye(0, 0, -5);
-	XMFLOAT3 target(0, 0, 0);
+	float angle = 0;
+	auto worldMat = XMMatrixRotationY(angle);
+	XMFLOAT3 eye(0, 10, -15);
+	XMFLOAT3 target(0, 10, 0);
 	XMFLOAT3 up(0, 1, 0);
 	auto viewMat = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
 	auto projMat = XMMatrixPerspectiveFovLH(
 		XM_PIDIV2,								// 画角90°
 		static_cast<float>(window_width) / static_cast<float>(window_height),	// アスペクト比
 		1.0f,									// 近い方
-		10.0f									// 遠い方
+		100.0f									// 遠い方
 	);
 	ID3D12Resource* constBuff = nullptr;
 	CD3DX12_HEAP_PROPERTIES constHeapProp(D3D12_HEAP_TYPE_UPLOAD);
@@ -635,8 +635,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		}
 
 		// 対象を回転
-		angle += 0.1f;
-		worldMat = XMMatrixRotationY(angle) * XMMatrixRotationZ(angle);
+		angle += 0.005f;
+		worldMat = XMMatrixRotationY(angle);
 		*mapMatrix = worldMat * viewMat * projMat;
 
 		// DirectX処理
@@ -659,18 +659,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 		// 画面クリア命令
 		frame++;
-		float r, g, b;
-		r = 1.0f;
-		g = 1.0f;
-		b = (float)(0xff & frame) / 255.0f;
-		float clearColor[] = { r, g, b, 1.0f };
+		float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
 
 		_cmdList->RSSetViewports(1, &viewport);
 		_cmdList->RSSetScissorRects(1, &scissorRect);
 		_cmdList->SetGraphicsRootSignature(rootSignature);
 
-		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// 三角形の集合として描画
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);			// 点の集合として描画
 		_cmdList->IASetVertexBuffers(0, 1, &vbView);
 		_cmdList->IASetIndexBuffer(&ibView);
 
@@ -679,7 +676,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->SetGraphicsRootDescriptorTable(0, basicDescHeap->GetGPUDescriptorHandleForHeapStart());
 
 		//_cmdList->DrawInstanced(4, 1, 0, 0);
-		_cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+		//_cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+		_cmdList->DrawInstanced(vertNum, 1, 0, 0);
 
 		// 再び、リソースバリアによってレンダーターゲット→PRESENT状態に移行する
 		barrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(
