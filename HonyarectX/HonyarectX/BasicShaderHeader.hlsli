@@ -11,5 +11,6 @@ SamplerState smp : register(s0);		// 0番スロットに設定されたサンプ
 // 定数バッファー
 cbuffer cbuff0 : register(b0)
 {
-	matrix mat;							// 変換行列
+	matrix world;				// ワールド変換強烈
+	matrix viewproj;			// ビュープロジェクション行列
 }
