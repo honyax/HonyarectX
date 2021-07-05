@@ -291,18 +291,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	fread(signature, sizeof(signature), 1, fp);
 	fread(&pmdHeader, sizeof(pmdHeader), 1, fp);
 
-#if 0
-	// PMD頂点構造体
-	struct PMDVertex {
-		XMFLOAT3 pos;				// 頂点座標　　：12バイト
-		XMFLOAT3 normal;			// 法線ベクトル：12バイト
-		XMFLOAT2 uv;				// uv座標　　　：8バイト
-		unsigned short boneNo[2];	// ボーン番号　：4バイト
-		unsigned char boneWeight;	// ボーン影響度：1バイト
-		unsigned char edgeFlg;		// 輪郭線フラグ：1バイト
-	};
-#endif
-
 	unsigned int vertNum;					// 頂点数
 	fread(&vertNum, sizeof(vertNum), 1, fp);
 
@@ -314,6 +302,63 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	fread(&indicesNum, sizeof(indicesNum), 1, fp);
 	vector<unsigned short> indices(indicesNum);					// インデックス用バッファ
 	fread(indices.data(), indices.size() * sizeof(indices[0]), 1, fp);
+
+#pragma pack(1)	// ここから1バイトパッキング（アライメントは発生しない）
+	// PMDマテリアル構造体
+	struct PMDMaterial {
+		XMFLOAT3 diffuse;					// ディフューズ食
+		float alpha;						// ディフューズα
+		float specularity;					// スペキュラの強さ（乗算値）
+		XMFLOAT3 specular;					// スペキュラ色
+		XMFLOAT3 ambient;					// アンビエント色
+		unsigned char toonIdx;				// トゥーン番号
+		unsigned char edgeFlg;				// マテリアル毎の輪郭線フラグ
+		// 1バイトパッキングにしないとここで2バイトのパディングが発生する
+		unsigned int indicesNum;			// このマテリアルが割当たるインデックス数
+		char texFilePath[20];				// テクスチャファイル名
+	};	// 70バイトになる（パディングなしの場合）
+#pragma pack()	// 1バイトパッキング解除
+
+	// シェーダー側に投げられるマテリアルデータ
+	struct MaterialForHlsl {
+		XMFLOAT3 diffuse;					// ディフューズ色
+		float alpha;						// ディフューズα
+		XMFLOAT3 specular;					// スペキュラ色
+		float specularity;					// スペキュラの強さ（乗算値）
+		XMFLOAT3 ambient;					// アンビエント色
+	};
+
+	// それ以外のマテリアルデータ
+	struct AdditionalMaterial {
+		string texPath;						// テクスチャファイルパス
+		int toonIdx;						// トゥーン番号
+		bool edgeFlg;						// マテリアルごとの輪郭線フラグ
+	};
+
+	// 全体をまとめるデータ
+	struct Material {
+		unsigned int indicesNum;			// インデックス数
+		MaterialForHlsl material;
+		AdditionalMaterial additional;
+	};
+
+	unsigned int materialNum;				// マテリアル数
+	fread(&materialNum, sizeof(materialNum), 1, fp);
+
+	vector<PMDMaterial> pmdMaterials(materialNum);
+	fread(pmdMaterials.data(), pmdMaterials.size() * sizeof(PMDMaterial), 1, fp);
+
+	vector<Material> materials(pmdMaterials.size());
+
+	// コピー
+	for (int i = 0; i < pmdMaterials.size(); i++) {
+		materials[i].indicesNum = pmdMaterials[i].indicesNum;
+		materials[i].material.diffuse = pmdMaterials[i].diffuse;
+		materials[i].material.alpha = pmdMaterials[i].alpha;
+		materials[i].material.specular = pmdMaterials[i].specular;
+		materials[i].material.specularity = pmdMaterials[i].specularity;
+		materials[i].material.ambient = pmdMaterials[i].ambient;
+	}
 
 	fclose(fp);
 
