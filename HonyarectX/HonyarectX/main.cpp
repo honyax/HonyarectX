@@ -386,7 +386,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	D3D12_VERTEX_BUFFER_VIEW vbView = {};
 	vbView.BufferLocation = vertBuff->GetGPUVirtualAddress();	// バッファの仮想アドレス
-	vbView.SizeInBytes = vertices.size();						// 全バイト数
+	vbView.SizeInBytes = static_cast<UINT>(vertices.size());	// 全バイト数
 	vbView.StrideInBytes = pmdvertex_size;						// 1頂点あたりのバイト数
 
 	// インデックス情報
@@ -410,7 +410,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	D3D12_INDEX_BUFFER_VIEW ibView = {};
 	ibView.BufferLocation = idxBuff->GetGPUVirtualAddress();
 	ibView.Format = DXGI_FORMAT_R16_UINT;
-	ibView.SizeInBytes = indices.size() * sizeof(indices[0]);
+	ibView.SizeInBytes = static_cast<UINT>(indices.size() * sizeof(indices[0]));
 
 	ID3DBlob* vsBlob = nullptr;
 	ID3DBlob* psBlob = nullptr;

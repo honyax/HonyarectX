@@ -32,4 +32,6 @@
 *.app
 HonyarectX/.vs/
 HonyarectX/Debug/
+HonyarectX/x64/Debug/
 HonyarectX/HonyarectX/Debug/
+HonyarectX/HonyarectX/x64/Debug/
