@@ -412,6 +412,47 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	ibView.Format = DXGI_FORMAT_R16_UINT;
 	ibView.SizeInBytes = static_cast<UINT>(indices.size() * sizeof(indices[0]));
 
+	// マテリアルバッファーを作成
+	auto materialBuffSize = sizeof(MaterialForHlsl);
+	materialBuffSize = (materialBuffSize + 0xff) & ~0xFF;
+	ID3D12Resource* materialBuff = nullptr;
+	heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	resDesc = CD3DX12_RESOURCE_DESC::Buffer(materialBuffSize * materialNum);
+	result = _dev->CreateCommittedResource(
+		&heapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&resDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&materialBuff)
+	);
+	// マップマテリアルにコピー（実データとアライメントサイズの違いがあるため強引にキャストしてコピーしている）
+	char* mapMaterial = nullptr;
+	result = materialBuff->Map(0, nullptr, (void**)&mapMaterial);
+	for (auto& m : materials) {
+		*((MaterialForHlsl*)mapMaterial) = m.material;			// データコピー
+		mapMaterial += materialBuffSize;
+	}
+	materialBuff->Unmap(0, nullptr);
+	// ディスクリプタヒープ作成
+	ID3D12DescriptorHeap* materialDescHeap = nullptr;
+	D3D12_DESCRIPTOR_HEAP_DESC materialDescHeapDesc = {};
+	materialDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	materialDescHeapDesc.NodeMask = 0;
+	materialDescHeapDesc.NumDescriptors = materialNum;			// マテリアル数を指定
+	materialDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	result = _dev->CreateDescriptorHeap(&materialDescHeapDesc, IID_PPV_ARGS(&materialDescHeap));
+	// マテリアルビューの作成
+	D3D12_CONSTANT_BUFFER_VIEW_DESC matCBVDesc = {};
+	matCBVDesc.BufferLocation = materialBuff->GetGPUVirtualAddress();				// バッファーアドレス
+	matCBVDesc.SizeInBytes = static_cast<UINT>(materialBuffSize);					// マテリアルの256アライメントサイズ
+	auto matDescHeapH = materialDescHeap->GetCPUDescriptorHandleForHeapStart();		// 先頭を記録
+	for (UINT i = 0; i < materialNum; i++) {
+		_dev->CreateConstantBufferView(&matCBVDesc, matDescHeapH);
+		matDescHeapH.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		matCBVDesc.BufferLocation += materialBuffSize;
+	}
+
 	ID3DBlob* vsBlob = nullptr;
 	ID3DBlob* psBlob = nullptr;
 	ID3DBlob* errorBlob = nullptr;
@@ -515,20 +556,30 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
 	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-	D3D12_DESCRIPTOR_RANGE descTblRange[1] = {};					// 定数の1つ
+	D3D12_DESCRIPTOR_RANGE descTblRange[2] = {};					// 定数2つ
+	// 定数1つ目（座標変換用）
 	descTblRange[0].NumDescriptors = 1;								// 定数ひとつ
 	descTblRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;	// 種別は定数
 	descTblRange[0].BaseShaderRegister = 0;							// 0番スロットから
 	descTblRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	// 定数2つ目（マテリアル用）
+	descTblRange[1].NumDescriptors = 1;								// ディスクリプタヒープは複数だが、一度に使うのはひとつ
+	descTblRange[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;	// 種別は定数
+	descTblRange[1].BaseShaderRegister = 1;							// 1番スロットから
+	descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-	D3D12_ROOT_PARAMETER rootParam = {};
-	rootParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootParam.DescriptorTable.pDescriptorRanges = &descTblRange[0];	//デスクリプタレンジのアドレス
-	rootParam.DescriptorTable.NumDescriptorRanges = 1;				//デスクリプタレンジ数
-	rootParam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;		//全てのシェーダから見える
+	D3D12_ROOT_PARAMETER rootParam[2] = {};
+	rootParam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParam[0].DescriptorTable.pDescriptorRanges = &descTblRange[0];	//デスクリプタレンジのアドレス
+	rootParam[0].DescriptorTable.NumDescriptorRanges = 1;			//デスクリプタレンジ数
+	rootParam[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;	//全てのシェーダから見える
+	rootParam[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParam[1].DescriptorTable.pDescriptorRanges = &descTblRange[1];	//デスクリプタレンジのアドレス
+	rootParam[1].DescriptorTable.NumDescriptorRanges = 1;			//デスクリプタレンジ数
+	rootParam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;	//全てのシェーダから見える
 
-	rootSignatureDesc.pParameters = &rootParam;						// ルートパラメーターの先頭アドレス
-	rootSignatureDesc.NumParameters = 1;							// ルートパラメーター数
+	rootSignatureDesc.pParameters = rootParam;						// ルートパラメーターの先頭アドレス
+	rootSignatureDesc.NumParameters = 2;							// ルートパラメーター数
 
 	D3D12_STATIC_SAMPLER_DESC samplerDesc = {};
 	samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;			// 繰り返し
@@ -662,13 +713,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 		// 画面クリア命令
 		frame++;
-		float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		//float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		float clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
 		_cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 		_cmdList->RSSetViewports(1, &viewport);
 		_cmdList->RSSetScissorRects(1, &scissorRect);
-		_cmdList->SetGraphicsRootSignature(rootSignature);
 
 		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);		// 三角形の集合として描画
 		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);		// 点の集合として描画
@@ -676,11 +727,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->IASetIndexBuffer(&ibView);
 
 		_cmdList->SetGraphicsRootSignature(rootSignature);
+
+		// WVP変換行列
 		_cmdList->SetDescriptorHeaps(1, &basicDescHeap);
 		_cmdList->SetGraphicsRootDescriptorTable(0, basicDescHeap->GetGPUDescriptorHandleForHeapStart());
 
-		//_cmdList->DrawInstanced(vertNum, 1, 0, 0);
-		_cmdList->DrawIndexedInstanced(indicesNum, 1, 0, 0, 0);
+		// マテリアル
+		_cmdList->SetDescriptorHeaps(1, &materialDescHeap);
+		auto materialH = materialDescHeap->GetGPUDescriptorHandleForHeapStart();	// ヒープ先頭
+		UINT idxOffset = 0;															// 最初はオフセットなし
+		for (auto& m : materials) {
+			_cmdList->SetGraphicsRootDescriptorTable(1, materialH);
+			_cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
+			materialH.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			idxOffset += m.indicesNum;
+		}
 
 		// 再び、リソースバリアによってレンダーターゲット→PRESENT状態に移行する
 		barrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(
