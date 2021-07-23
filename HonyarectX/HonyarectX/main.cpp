@@ -79,6 +79,54 @@ wstring GetWideStringFromString(const string& str)
 	return wstr;
 }
 
+/// <summary>
+/// ダミーの白いテクスチャ(4x4)を作成
+/// </summary>
+/// <returns></returns>
+ID3D12Resource* CreateWhiteTexture()
+{
+	D3D12_HEAP_PROPERTIES texHeapProp = {};
+	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
+	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
+	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
+	texHeapProp.CreationNodeMask = 0;
+	texHeapProp.VisibleNodeMask = 0;
+
+	D3D12_RESOURCE_DESC resDesc = {};
+	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	resDesc.Width = 4;
+	resDesc.Height = 4;
+	resDesc.DepthOrArraySize = 1;
+	resDesc.SampleDesc.Count = 1;
+	resDesc.SampleDesc.Quality = 0;
+	resDesc.MipLevels = 1;
+	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	ID3D12Resource* whiteBuff = nullptr;
+
+	auto result = _dev->CreateCommittedResource(
+		&texHeapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&resDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		nullptr,
+		IID_PPV_ARGS(&whiteBuff)
+	);
+	if (FAILED(result)) {
+		return nullptr;
+	}
+
+	vector<UCHAR> data(4 * 4 * 4);
+	std::fill(data.begin(), data.end(), 0xff);		// 全部 0xFF で埋める
+
+	// データ転送
+	result = whiteBuff->WriteToSubresource(0, nullptr, data.data(), 4 * 4, static_cast<UINT>(data.size()));
+
+	return whiteBuff;
+}
+
 ID3D12Resource* LoadTextureFromFile(string& texPath)
 {
 	// WICテクスチャのロード
@@ -556,6 +604,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	srvDesc.Texture2D.MipLevels = 1;												// ミップマップは使用しないので1
 	auto matDescHeapH = materialDescHeap->GetCPUDescriptorHandleForHeapStart();		// 先頭を記録
 	auto inc = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	auto whiteTex = CreateWhiteTexture();
 	for (UINT i = 0; i < materialNum; i++) {
 		// マテリアル用定数バッファービュー
 		_dev->CreateConstantBufferView(&matCBVDesc, matDescHeapH);
@@ -563,10 +612,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		matCBVDesc.BufferLocation += materialBuffSize;
 
 		// シェーダーリソースビュー
-		if (textureResources[i] != nullptr) {
-			srvDesc.Format = textureResources[i]->GetDesc().Format;
-		}
-		_dev->CreateShaderResourceView(textureResources[i], &srvDesc, matDescHeapH);
+		// テクスチャが空の場合は白テクスチャを使う
+		auto texResource = textureResources[i] == nullptr ? whiteTex : textureResources[i];
+		srvDesc.Format = texResource->GetDesc().Format;
+		_dev->CreateShaderResourceView(texResource, &srvDesc, matDescHeapH);
+
 		matDescHeapH.ptr += inc;
 	}
 
