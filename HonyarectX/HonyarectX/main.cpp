@@ -179,13 +179,32 @@ ID3D12Resource* CreateBlackTexture()
 	return texBuff;
 }
 
+HRESULT LoadTextureFile(string& texPath, TexMetadata* meta, ScratchImage& img)
+{
+	auto ext = GetExtension(texPath);
+	auto path = GetWideStringFromString(texPath);
+
+	if (ext == "sph" || ext == "spa" || ext == "bmp" || ext == "png" || ext == "jpg") {
+		return LoadFromWICFile(path.c_str(), WIC_FLAGS_NONE, meta, img);
+	}
+	else if (ext == "tga") {
+		return LoadFromTGAFile(path.c_str(), TGA_FLAGS_NONE, meta, img);
+	}
+	else if (ext == "dds") {
+		return LoadFromDDSFile(path.c_str(), DDS_FLAGS_NONE, meta, img);
+	}
+	else {
+		return static_cast<HRESULT>(-1);
+	}
+}
+
 ID3D12Resource* LoadTextureFromFile(string& texPath)
 {
 	// WICテクスチャのロード
 	TexMetadata metadata = {};
 	ScratchImage scratchImg = {};
 
-	auto result = LoadFromWICFile(GetWideStringFromString(texPath).c_str(), WIC_FLAGS_NONE, &metadata, scratchImg);
+	auto result = LoadTextureFile(texPath, &metadata, scratchImg);
 	if (FAILED(result)) {
 		return nullptr;
 	}
