@@ -468,7 +468,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	PMDHeader pmdHeader = {};
 	FILE* fp;
 	//string strModelPath = "Model/初音ミク.pmd";
-	string strModelPath = "Model/巡音ルカ.pmd";
+	string strModelPath = "Model/初音ミクmetal.pmd";
+	//string strModelPath = "Model/巡音ルカ.pmd";
 	auto err = fopen_s(&fp, strModelPath.c_str(), "rb");
 	if (fp == nullptr) {
 		char strerr[256];
@@ -909,17 +910,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	scissorRect.bottom = scissorRect.top + window_height;	// 切り抜き下座標
 
 	// シェーダー側に渡すための基本的な行列データ
-	struct MatricesData {
+	struct SceneMatrix {
 		XMMATRIX world;				// モデル本体を回転させたり移動させたりする行列
 		XMMATRIX view;				// ビュー行列
 		XMMATRIX proj;				// プロジェクション行列
+		XMFLOAT3 eye;				// 視点座標
 	};
 
 	// 定数バッファ作成
 	float angle = 0;
 	auto worldMat = XMMatrixRotationY(angle);
-	XMFLOAT3 eye(0, 10, -15);
-	XMFLOAT3 target(0, 10, 0);
+	//XMFLOAT3 eye(0, 10, -15);
+	XMFLOAT3 eye(0, 15, -7.5f);
+	//XMFLOAT3 target(0, 10, 0);
+	XMFLOAT3 target(0, 15, 0);
 	XMFLOAT3 up(0, 1, 0);
 	auto viewMat = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
 	auto projMat = XMMatrixPerspectiveFovLH(
@@ -930,7 +934,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	);
 	ID3D12Resource* constBuff = nullptr;
 	CD3DX12_HEAP_PROPERTIES constHeapProp(D3D12_HEAP_TYPE_UPLOAD);
-	CD3DX12_RESOURCE_DESC constResDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(MatricesData) + 0xff) & ~0xFF);
+	CD3DX12_RESOURCE_DESC constResDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(SceneMatrix) + 0xff) & ~0xFF);
 	result = _dev->CreateCommittedResource(
 		&constHeapProp,
 		D3D12_HEAP_FLAG_NONE,
@@ -940,12 +944,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		IID_PPV_ARGS(&constBuff)
 	);
 
-	MatricesData* mapMatrix;											// マップ先を示すポインタ
+	SceneMatrix* mapMatrix;											// マップ先を示すポインタ
 	result = constBuff->Map(0, nullptr, (void**)&mapMatrix);			// マップ
 	// 行列の内容をコピー
 	mapMatrix->world = worldMat;
 	mapMatrix->view = viewMat;
 	mapMatrix->proj = projMat;
+	mapMatrix->eye = eye;
 
 	// ディスクリプタヒープを作る
 	ID3D12DescriptorHeap* basicDescHeap = nullptr;
@@ -1005,7 +1010,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		// 画面クリア命令
 		frame++;
 		//float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-		float clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
+		float clearColor[] = { 0.1f, 0.1f, 0.1f, 1.0f };
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
 		_cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 

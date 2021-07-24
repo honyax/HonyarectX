@@ -5,6 +5,7 @@ struct BasicType {
 	float4 normal : NORMAL0;	// 法線ベクトル
 	float4 vnormal : NORMAL1;	// ビュー変換後の法線ベクトル
 	float2 uv : TEXCOORD;		// UV座標
+	float3 ray : VECTOR;		// 視点
 };
 
 Texture2D<float4> tex : register(t0);	// 0番スロットに設定されたテクスチャ
@@ -18,6 +19,7 @@ cbuffer cbuff0 : register(b0)
 	matrix world;				// ワールド変換強烈
 	matrix view;				// ビュー行列
 	matrix proj;				// プロジェクション行列
+	float3 eye;					// 視点
 };
 
 // 定数バッファー1
