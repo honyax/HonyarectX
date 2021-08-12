@@ -1,4 +1,139 @@
-﻿#include "Application.h"
+﻿#if 0
+
+#include "Application.h"
+#include "Dx12Wrapper.h"
+#include "PMDRenderer.h"
+#include "PMDActor.h"
+
+/// <summary>ウィンドウ定数</summary>
+const unsigned int window_width = 1280;
+const unsigned int window_height = 720;
+
+/// <summary>面倒だけど書かなあかんやつ</summary>
+LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+	if (msg == WM_DESTROY)
+	{
+		// ウィンドウが破棄されたら呼ばれる
+		// OSに対して「もうこのアプリは終わる」と伝える
+		PostQuitMessage(0);
+		return 0;
+	}
+	// 規定の処理を行う
+	return DefWindowProc(hwnd, msg, wparam, lparam);
+}
+
+void Application::CreateGameWindow(HWND& hwnd, WNDCLASSEX& windowClass)
+{
+	HINSTANCE hInst = GetModuleHandle(nullptr);
+
+	// ウィンドウクラス生成＆登録
+	windowClass.cbSize = sizeof(WNDCLASSEX);
+	windowClass.lpfnWndProc = (WNDPROC)WindowProcedure;		// コールバック関数の指定
+	windowClass.lpszClassName = _T("HonyarectX");			// アプリケーションクラス名（適当でよい）
+	windowClass.hInstance = GetModuleHandle(0);				// ハンドルの取得
+	RegisterClassEx(&_windowClass);							// アプリケーションクラス（ウィンドウクラスの指定をOSに伝える）
+
+	RECT wrc = { 0, 0, window_width, window_height };		// ウィンドウサイズを決める
+	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);		// 関数を使ってウィンドウのサイズを補正する
+
+	// ウィンドウオブジェクトの生成
+	hwnd = CreateWindow(
+		windowClass.lpszClassName,		// クラス名指定
+		_T("HonyarectX"),				// タイトルバーの文字
+		WS_OVERLAPPEDWINDOW,			// タイトルバーと境界線があるウィンドウ
+		CW_USEDEFAULT,					// 表示x座標はOSにお任せ
+		CW_USEDEFAULT,					// 表示y座標はOSにお任せ
+		wrc.right - wrc.left,			// ウィンドウ幅
+		wrc.bottom - wrc.top,			// ウィンドウ高
+		nullptr,						// 親ウィンドウハンドル
+		nullptr,						// メニューハンドル
+		windowClass.hInstance,			// 呼び出しアプリケーションハンドル
+		nullptr);						// 追加パラメーター
+}
+
+SIZE Application::GetWindowSize() const
+{
+	SIZE ret;
+	ret.cx = window_width;
+	ret.cy = window_height;
+	return ret;
+}
+
+void Application::Run()
+{
+	ShowWindow(_hwnd, SW_SHOW);			// ウィンドウ表示
+	float angle = 0.0f;
+	MSG msg = {};
+	UINT frame = 0;
+	while (true) {
+		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		// もうアプリケーションが終わるって時にmessageがWM_QUITになる
+		if (msg.message == WM_QUIT) {
+			break;
+		}
+
+		// 全体の描画準備
+		_dx12->BeginDraw();
+
+		// PMD用の描画パイプラインに合わせる
+		_dx12->CommandList()->SetPipelineState(_pmdRenderer->GetPipelineState());
+		// ルートシグネチャもPMD用に合わせる
+		_dx12->CommandList()->SetGraphicsRootSignature(_pmdRenderer->GetRootSignature());
+
+		_dx12->CommandList()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		_dx12->SetScene();
+
+		_pmdActor->Update();
+		_pmdActor->Draw();
+
+		_dx12->EndDraw();
+
+		// フリップ
+		_dx12->Swapchain()->Present(1, 0);
+	}
+}
+
+bool Application::Init()
+{
+	auto result = CoInitializeEx(0, COINIT_MULTITHREADED);
+	CreateGameWindow(_hwnd, _windowClass);
+
+	// DirectX12ラッパー生成＆初期化
+	_dx12.reset(new Dx12Wrapper(_hwnd));
+	_pmdRenderer.reset(new PMDRenderer(*_dx12));
+	_pmdActor.reset(new PMDActor("Model/初音ミク.pmd", *_pmdRenderer));
+
+	return true;
+}
+
+void Application::Terminate()
+{
+	// もうクラスは使わないので登録解除する
+	UnregisterClass(_windowClass.lpszClassName, _windowClass.hInstance);
+}
+
+Application& Application::Instance()
+{
+	static Application instance;
+	return instance;
+}
+
+Application::Application()
+{
+}
+
+Application::~Application()
+{
+}
+
+#else
+
+#include "Application.h"
 
 #pragma comment(lib, "DirectXTex.lib")
 #pragma comment(lib, "d3d12.lib")
@@ -445,8 +580,8 @@ bool Application::Init()
 	char signature[3];
 	PMDHeader pmdHeader = {};
 	FILE* fp;
-	//string strModelPath = "Model/初音ミク.pmd";
-	string strModelPath = "Model/初音ミクmetal.pmd";
+	string strModelPath = "Model/初音ミク.pmd";
+	//string strModelPath = "Model/初音ミクmetal.pmd";
 	//string strModelPath = "Model/巡音ルカ.pmd";
 	auto err = fopen_s(&fp, strModelPath.c_str(), "rb");
 	if (fp == nullptr) {
@@ -815,7 +950,7 @@ bool Application::Init()
 	rootSigBlob->Release();
 
 	gpipeline.pRootSignature = _rootSignature.Get();
-	result = _dev->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(_pipelineState.ReleaseAndGetAddressOf()));
+	result = _dev->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(_pipeline.ReleaseAndGetAddressOf()));
 
 	// ビューポート
 	_viewport.Width = window_width;		// 出力先の幅（ピクセル数）
@@ -902,8 +1037,6 @@ void Application::Run()
 		angle += 0.005f;
 		_worldMat = XMMatrixRotationY(angle);
 		_mapMatrix->world = _worldMat;
-		_mapMatrix->view = _viewMat;
-		_mapMatrix->proj = _projMat;
 
 		// DirectX処理
 		// バックバッファのインデックスを取得
@@ -916,7 +1049,7 @@ void Application::Run()
 
 		_cmdList->ResourceBarrier(1, &barrierDesc);
 
-		_cmdList->SetPipelineState(_pipelineState.Get());
+		_cmdList->SetPipelineState(_pipeline.Get());
 
 		// レンダーターゲットを指定
 		auto rtvH = _rtvHeaps->GetCPUDescriptorHandleForHeapStart();
@@ -926,7 +1059,6 @@ void Application::Run()
 
 		// 画面クリア命令
 		frame++;
-		//float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 		float clearColor[] = { 0.1f, 0.1f, 0.1f, 1.0f };
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
 		_cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
@@ -998,6 +1130,14 @@ void Application::Terminate()
 	UnregisterClass(_windowClass.lpszClassName, _windowClass.hInstance);
 }
 
+SIZE Application::GetWindowSize() const
+{
+	SIZE ret;
+	ret.cx = window_width;
+	ret.cy = window_height;
+	return ret;
+}
+
 Application::Application()
 {
 }
@@ -1005,3 +1145,5 @@ Application::Application()
 Application::~Application()
 {
 }
+
+#endif
