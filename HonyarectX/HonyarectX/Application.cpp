@@ -968,17 +968,15 @@ bool Application::Init()
 
 	// 定数バッファ作成
 	_worldMat = XMMatrixRotationY(0);
-	//XMFLOAT3 eye(0, 10, -15);
-	XMFLOAT3 eye(0, 15, -7.5f);
-	//XMFLOAT3 target(0, 10, 0);
+	XMFLOAT3 eye(0, 15, -15);
 	XMFLOAT3 target(0, 15, 0);
 	XMFLOAT3 up(0, 1, 0);
 	_viewMat = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
 	_projMat = XMMatrixPerspectiveFovLH(
 		XM_PIDIV2,								// 画角90°
 		static_cast<float>(window_width) / static_cast<float>(window_height),	// アスペクト比
-		1.0f,									// 近い方
-		100.0f									// 遠い方
+		0.1f,									// 近い方
+		1000.0f									// 遠い方
 	);
 	ID3D12Resource* constBuff = nullptr;
 	CD3DX12_HEAP_PROPERTIES constHeapProp(D3D12_HEAP_TYPE_UPLOAD);
