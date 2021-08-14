@@ -513,8 +513,8 @@ void Dx12Wrapper::BeginDraw()
 	// DirectX処理
 	// バックバッファのインデックスを取得
 	auto bbIdx = _swapchain->GetCurrentBackBufferIndex();
-	// リソースバリア設定
 
+	// リソースバリア設定
 	// PRESENT状態からレンダーターゲット状態へ
 	auto barrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(_backBuffers[bbIdx],
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -522,7 +522,7 @@ void Dx12Wrapper::BeginDraw()
 
 	// レンダーターゲットを指定
 	auto rtvH = _rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-	rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	rtvH.ptr += static_cast<UINT64>(bbIdx) * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 	// 深度を指定
 	auto dsvH = _dsvHeap->GetCPUDescriptorHandleForHeapStart();

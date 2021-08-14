@@ -1031,54 +1031,62 @@ void Application::Run()
 			break;
 		}
 
-		// 対象を回転
-		angle += 0.005f;
-		_worldMat = XMMatrixRotationY(angle);
-		_mapMatrix->world = _worldMat;
-
+		// +++Dx12Wrapper::BeginDraw+++
 		// DirectX処理
 		// バックバッファのインデックスを取得
 		auto bbIdx = _swapChain->GetCurrentBackBufferIndex();
 
 		// リソースバリア設定
 		// PRESENT状態からレンダーターゲット状態へ
-		CD3DX12_RESOURCE_BARRIER barrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(
-			_backBuffers[bbIdx], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-
+		auto barrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(_backBuffers[bbIdx],
+			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		_cmdList->ResourceBarrier(1, &barrierDesc);
-
-		_cmdList->SetPipelineState(_pipeline.Get());
 
 		// レンダーターゲットを指定
 		auto rtvH = _rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-		rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		rtvH.ptr += static_cast<UINT64>(bbIdx) * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+		// 深度を設定
 		auto dsvH = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
-		_cmdList->OMSetRenderTargets(1, &rtvH, true, &dsvH);
+		_cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvH);
+		_cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 		// 画面クリア命令
-		frame++;
-		float clearColor[] = { 0.1f, 0.1f, 0.1f, 1.0f };
+		float clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
-		_cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 		_cmdList->RSSetViewports(1, &_viewport);
 		_cmdList->RSSetScissorRects(1, &_scissorRect);
+		// ---Dx12Wrapper::BeginDraw---
 
-		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);		// 三角形の集合として描画
-		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);		// 点の集合として描画
-		_cmdList->IASetVertexBuffers(0, 1, &_vbView);
-		_cmdList->IASetIndexBuffer(&_ibView);
+		_cmdList->SetPipelineState(_pipeline.Get());
 
 		_cmdList->SetGraphicsRootSignature(_rootSignature.Get());
 
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);		// 三角形の集合として描画
+
+		// +++Dx12Wrapper::SetScene+++
 		// WVP変換行列
 		ID3D12DescriptorHeap* bdh[] = { _basicDescHeap.Get() };
 		_cmdList->SetDescriptorHeaps(1, bdh);
 		_cmdList->SetGraphicsRootDescriptorTable(0, _basicDescHeap->GetGPUDescriptorHandleForHeapStart());
+		// ---Dx12Wrapper::SetScene---
+
+		// +++PMDActor::Update+++
+		// 対象を回転
+		angle += 0.03f;
+		_worldMat = XMMatrixRotationY(angle);
+		_mapMatrix->world = _worldMat;
+		// ---PMDActor::Update---
+
+		// +++PMDActor::Draw+++
+		_cmdList->IASetVertexBuffers(0, 1, &_vbView);
+		_cmdList->IASetIndexBuffer(&_ibView);
 
 		// マテリアル
 		ID3D12DescriptorHeap* mdh[] = { _materialDescHeap.Get() };
 		_cmdList->SetDescriptorHeaps(1, mdh);
+
 		auto materialH = _materialDescHeap->GetGPUDescriptorHandleForHeapStart();	// ヒープ先頭
 		auto cbvSrvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 5;
 		UINT idxOffset = 0;															// 最初はオフセットなし
@@ -1088,10 +1096,13 @@ void Application::Run()
 			materialH.ptr += cbvSrvIncSize;		// 次ビューのために進める
 			idxOffset += m.indicesNum;
 		}
+		// ---PMDActor::Draw---
 
+		// +++Dx12Wrapper::EndDraw+++
 		// 再び、リソースバリアによってレンダーターゲット→PRESENT状態に移行する
-		barrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(
-			_backBuffers[bbIdx], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+		barrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(_backBuffers[bbIdx],
+			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+
 		_cmdList->ResourceBarrier(1, &barrierDesc);
 
 		// 命令のクローズ
@@ -1103,20 +1114,22 @@ void Application::Run()
 
 		// フェンスを使ってGPUの処理完了を待つ
 		_cmdQueue->Signal(_fence.Get(), ++_fenceVal);
-		if (_fence->GetCompletedValue() != _fenceVal) {
+
+		if (_fence->GetCompletedValue() < _fenceVal) {
 			auto ev = CreateEvent(nullptr, false, false, nullptr);
 			_fence->SetEventOnCompletion(_fenceVal, ev);
 			WaitForSingleObject(ev, INFINITE);
 			CloseHandle(ev);
 		}
 
-		// キューをクリア
-		_cmdAllocator->Reset();
-		// 再びコマンドリストをためる準備
-		_cmdList->Reset(_cmdAllocator.Get(), nullptr);
+		_cmdAllocator->Reset();							// キューをクリア
+		_cmdList->Reset(_cmdAllocator.Get(), nullptr);	// 再びコマンドリストをためる準備
+		// ---Dx12Wrapper::EndDraw---
 
 		// フリップ
 		_swapChain->Present(1, 0);
+
+		frame++;
 	}
 
 	return;
