@@ -1,6 +1,4 @@
-﻿#if 0
-
-#include "Application.h"
+﻿#include "Application.h"
 #include "Dx12Wrapper.h"
 #include "PMDRenderer.h"
 #include "PMDActor.h"
@@ -131,7 +129,7 @@ Application::~Application()
 {
 }
 
-#else
+#if 0
 
 #include "Application.h"
 

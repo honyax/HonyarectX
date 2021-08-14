@@ -18,15 +18,18 @@ SamplerState smpToon : register(s1);	// 1番スロットに設定されたサン
 // 定数バッファー0
 cbuffer cbuff0 : register(b0)
 {
-	matrix world;				// ワールド変換強烈
 	matrix view;				// ビュー行列
 	matrix proj;				// プロジェクション行列
 	float3 eye;					// 視点
 };
+cbuffer Transform : register(b1)
+{
+	matrix world;				// ワールド変換強烈
+}
 
 // 定数バッファー1
 // マテリアル用
-cbuffer Material : register(b1)
+cbuffer Material : register(b2)
 {
 	float4 diffuse;				// ディフューズ色
 	float4 specular;			// スペキュラ
