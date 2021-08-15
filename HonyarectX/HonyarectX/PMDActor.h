@@ -3,6 +3,7 @@
 #include <d3d12.h>
 #include <DirectXMath.h>
 #include <vector>
+#include <map>
 #include <string>
 #include <wrl.h>
 
@@ -75,6 +76,16 @@ private:
 	std::vector<ComPtr<ID3D12Resource>> _sphResources;
 	std::vector<ComPtr<ID3D12Resource>> _spaResources;
 	std::vector<ComPtr<ID3D12Resource>> _toonResources;
+
+	/// <summary>ボーン関連</summary>
+	std::vector<DirectX::XMMATRIX> _boneMatrices;
+
+	struct BoneNode {
+		int boneIdx;						// ボーンインデックス
+		DirectX::XMFLOAT3 startPos;			// ボーン基準点（回転中心）
+		std::vector<BoneNode*> children;	// 子ノード
+	};
+	std::map<std::string, BoneNode> _boneNodeTable;
 
 	/// <summary>
 	/// 読み込んだマテリアルをもとにマテリアルバッファを作成

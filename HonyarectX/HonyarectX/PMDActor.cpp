@@ -278,6 +278,29 @@ HRESULT PMDActor::LoadPMDFile(const char* path)
 	vector<PMDBone> pmdBones(boneNum);
 	fread(pmdBones.data(), sizeof(PMDBone), boneNum, fp);
 
+	// インデックスと名前の対応関係構築のために後で使う
+	vector<string> boneNames(pmdBones.size());
+	// ボーンノードマップを作る
+	for (int idx = 0; idx < pmdBones.size(); ++idx) {
+		auto& pb = pmdBones[idx];
+		boneNames[idx] = pb.boneName;
+		auto& node = _boneNodeTable[pb.boneName];
+		node.boneIdx = idx;
+		node.startPos = pb.pos;
+	}
+	// 親子関係を構築する
+	for (auto& pb : pmdBones) {
+		if (pb.parentNo >= pmdBones.size()) {
+			continue;
+		}
+		auto parentName = boneNames[pb.parentNo];
+		_boneNodeTable[parentName].children.emplace_back(&_boneNodeTable[pb.boneName]);
+	}
+	_boneMatrices.resize(pmdBones.size());
+
+	// ボーンをすべて初期化
+	std::fill(_boneMatrices.begin(), _boneMatrices.end(), XMMatrixIdentity());
+
 	fclose(fp);
 }
 
