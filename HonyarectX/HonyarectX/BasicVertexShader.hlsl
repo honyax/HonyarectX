@@ -1,6 +1,6 @@
 #include "BasicShaderHeader.hlsli"
 
-BasicType BasicVS(float4 pos : POSITION, float4 normal : NORMAL, float2 uv : TEXCOORD, min16uint2 boneno : BONE_NO, min16uint weight : WEIGHT)
+BasicType BasicVS(float4 pos : POSITION, float4 normal : NORMAL, float2 uv : TEXCOORD, min16uint2 boneno : BONENO, min16uint weight : WEIGHT)
 {
 	BasicType output;
 	pos = mul(world, pos);
