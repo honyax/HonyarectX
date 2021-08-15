@@ -334,6 +334,20 @@ HRESULT PMDActor::CreateTransformView()
 		return result;
 	}
 	_mappedMatrices[0] = _transform.world;
+	auto armNode = _boneNodeTable["左腕"];
+	auto& armPos = armNode.startPos;
+	auto armMat = XMMatrixTranslation(-armPos.x, -armPos.y, -armPos.z)
+		* XMMatrixRotationZ(XM_PIDIV2)
+		* XMMatrixTranslation(armPos.x, armPos.y, armPos.z);
+	auto elbowNode = _boneNodeTable["左ひじ"];
+	auto& elbowPos = elbowNode.startPos;
+	auto elbowMat = XMMatrixTranslation(-elbowPos.x, -elbowPos.y, -elbowPos.z)
+		* XMMatrixRotationZ(-XM_PIDIV2)
+		* XMMatrixTranslation(elbowPos.x, elbowPos.y, elbowPos.z);
+	_boneMatrices[armNode.boneIdx] = armMat;
+	_boneMatrices[elbowNode.boneIdx] = elbowMat;
+	auto ident = XMMatrixIdentity();
+	RecursiveMatrixMultiply(&_boneNodeTable["センター"], ident);
 	std::copy(_boneMatrices.begin(), _boneMatrices.end(), _mappedMatrices + 1);
 
 	// ビューの作成
@@ -356,6 +370,18 @@ HRESULT PMDActor::CreateTransformView()
 	_dx12.Device()->CreateConstantBufferView(&cbvDesc, _transformHeap->GetCPUDescriptorHandleForHeapStart());
 
 	return S_OK;
+}
+
+void PMDActor::RecursiveMatrixMultiply(BoneNode* node, DirectX::XMMATRIX& mat)
+{
+	if (node == nullptr)
+		return;
+
+	_boneMatrices[node->boneIdx] = mat;
+	for (auto& cnode : node->children) {
+		auto cmat = _boneMatrices[cnode->boneIdx] * mat;
+		RecursiveMatrixMultiply(cnode, cmat);
+	}
 }
 
 HRESULT PMDActor::CreateMaterialData()
