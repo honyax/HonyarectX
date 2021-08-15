@@ -42,7 +42,7 @@ void PMDRenderer::Draw()
 
 ID3D12Resource* PMDRenderer::CreateDefaultTexture(size_t width, size_t height)
 {
-	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, width, height);
+	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, width, static_cast<UINT>(height));
 	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0);
 	ID3D12Resource* buff = nullptr;
 	auto result = _dx12.Device()->CreateCommittedResource(
@@ -66,7 +66,7 @@ ID3D12Resource* PMDRenderer::CreateWhiteTexture()
 	vector<unsigned char> data(4 * 4 * 4);
 	fill(data.begin(), data.end(), 0xff);
 
-	auto result = whiteBuff->WriteToSubresource(0, nullptr, data.data(), 4 * 4, data.size());
+	auto result = whiteBuff->WriteToSubresource(0, nullptr, data.data(), 4 * 4, static_cast<UINT>(data.size()));
 	assert(SUCCEEDED(result));
 	return whiteBuff;
 }
@@ -77,7 +77,7 @@ ID3D12Resource* PMDRenderer::CreateBlackTexture()
 	vector<unsigned char> data(4 * 4 * 4);
 	fill(data.begin(), data.end(), 0x00);
 
-	auto result = blackBuff->WriteToSubresource(0, nullptr, data.data(), 4 * 4, data.size());
+	auto result = blackBuff->WriteToSubresource(0, nullptr, data.data(), 4 * 4, static_cast<UINT>(data.size()));
 	assert(SUCCEEDED(result));
 	return blackBuff;
 }
@@ -96,7 +96,7 @@ ID3D12Resource* PMDRenderer::CreateGrayGradationTexture()
 		--c;
 	}
 
-	auto result = gradBuff->WriteToSubresource(0, nullptr, data.data(), 4 * sizeof(unsigned int), sizeof(unsigned int) * data.size());
+	auto result = gradBuff->WriteToSubresource(0, nullptr, data.data(), 4 * sizeof(UINT), static_cast<UINT>(sizeof(UINT) * data.size()));
 	assert(SUCCEEDED(result));
 	return gradBuff;
 }

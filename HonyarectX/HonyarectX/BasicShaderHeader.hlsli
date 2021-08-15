@@ -25,6 +25,7 @@ cbuffer cbuff0 : register(b0)
 cbuffer Transform : register(b1)
 {
 	matrix world;				// ワールド変換強烈
+	matrix bones[256];			// ボーン行列
 }
 
 // 定数バッファー1

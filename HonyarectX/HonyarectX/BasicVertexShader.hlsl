@@ -3,6 +3,7 @@
 BasicType BasicVS(float4 pos : POSITION, float4 normal : NORMAL, float2 uv : TEXCOORD, min16uint2 boneno : BONENO, min16uint weight : WEIGHT)
 {
 	BasicType output;
+	pos = mul(bones[boneno[0]], pos);
 	pos = mul(world, pos);
 	output.svpos = mul(mul(proj, view), pos);			// シェーダーでは列優先
 	output.pos = mul(view, pos);

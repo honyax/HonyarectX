@@ -66,7 +66,7 @@ private:
 	};
 
 	Transform _transform;
-	Transform* _mappedTransform = nullptr;
+	DirectX::XMMATRIX* _mappedMatrices = nullptr;
 	ComPtr<ID3D12Resource> _transformBuff = nullptr;
 
 	/// <summary>マテリアル関連</summary>

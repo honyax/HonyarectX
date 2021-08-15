@@ -45,8 +45,8 @@ namespace
 		// ファイルのフォルダ区切りは\と/の二種類が使用される可能性があり
 		// ともかく末尾の\か/を得られればいいので、双方のrfindをとり比較する
 		// int型に代入しているのは見つからなかった場合はrfindがepos(-1→0xffffffff)を返すため
-		int pathIndex1 = modelPath.rfind('/');
-		int pathIndex2 = modelPath.rfind('\\');
+		int pathIndex1 = static_cast<int>(modelPath.rfind('/'));
+		int pathIndex2 = static_cast<int>(modelPath.rfind('\\'));
 		auto pathIndex = max(pathIndex1, pathIndex2);
 		auto folderPath = modelPath.substr(0, pathIndex + 1);
 		return folderPath + texPath;
@@ -142,7 +142,7 @@ HRESULT PMDActor::LoadPMDFile(const char* path)
 	_vb->Unmap(0, nullptr);
 
 	_vbView.BufferLocation = _vb->GetGPUVirtualAddress();		// バッファの仮想アドレス
-	_vbView.SizeInBytes = vertices.size();						// 全バイト数
+	_vbView.SizeInBytes = static_cast<UINT>(vertices.size());	// 全バイト数
 	_vbView.StrideInBytes = pmdvertex_size;						// 1頂点あたりのバイト数
 
 	vector<unsigned short> indices(indicesNum);					// インデックス用バッファ
@@ -169,7 +169,7 @@ HRESULT PMDActor::LoadPMDFile(const char* path)
 	// インデックスバッファビューを作成
 	_ibView.BufferLocation = _ib->GetGPUVirtualAddress();
 	_ibView.Format = DXGI_FORMAT_R16_UINT;
-	_ibView.SizeInBytes = indices.size() * sizeof(indices[0]);
+	_ibView.SizeInBytes = static_cast<UINT>(indices.size() * sizeof(indices[0]));
 
 	unsigned int materialNum;
 	fread(&materialNum, sizeof(materialNum), 1, fp);
@@ -302,12 +302,14 @@ HRESULT PMDActor::LoadPMDFile(const char* path)
 	std::fill(_boneMatrices.begin(), _boneMatrices.end(), XMMatrixIdentity());
 
 	fclose(fp);
+
+	return S_OK;
 }
 
 HRESULT PMDActor::CreateTransformView()
 {
 	// GPUバッファ作成
-	auto buffSize = sizeof(Transform);
+	auto buffSize = sizeof(XMMATRIX) * (1 + _boneMatrices.size());
 	buffSize = (buffSize + 0xff) & ~0xFF;
 	auto heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 	auto resDesc = CD3DX12_RESOURCE_DESC::Buffer(buffSize);
@@ -326,12 +328,13 @@ HRESULT PMDActor::CreateTransformView()
 	}
 
 	// マップとコピー
-	result = _transformBuff->Map(0, nullptr, (void**)&_mappedTransform);
+	result = _transformBuff->Map(0, nullptr, (void**)&_mappedMatrices);
 	if (FAILED(result)) {
 		assert(SUCCEEDED(result));
 		return result;
 	}
-	*_mappedTransform = _transform;
+	_mappedMatrices[0] = _transform.world;
+	std::copy(_boneMatrices.begin(), _boneMatrices.end(), _mappedMatrices + 1);
 
 	// ビューの作成
 	D3D12_DESCRIPTOR_HEAP_DESC transformDescHeapDesc = {};
@@ -349,7 +352,7 @@ HRESULT PMDActor::CreateTransformView()
 
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 	cbvDesc.BufferLocation = _transformBuff->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = buffSize;
+	cbvDesc.SizeInBytes = static_cast<UINT>(buffSize);
 	_dx12.Device()->CreateConstantBufferView(&cbvDesc, _transformHeap->GetCPUDescriptorHandleForHeapStart());
 
 	return S_OK;
@@ -396,7 +399,7 @@ HRESULT PMDActor::CreateMaterialData()
 HRESULT PMDActor::CreateMaterialAndTextureView()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC materialDescHeapDesc = {};
-	materialDescHeapDesc.NumDescriptors = _materials.size() * 5;		// マテリアル数 x5（定数、基本テクスチャ、sph、spa、toon）
+	materialDescHeapDesc.NumDescriptors = static_cast<UINT>(_materials.size() * 5);		// マテリアル数 x5（定数、基本テクスチャ、sph、spa、toon）
 	materialDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	materialDescHeapDesc.NodeMask = 0;
 	materialDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;	// デスクリプタヒープ種別
@@ -450,12 +453,14 @@ HRESULT PMDActor::CreateMaterialAndTextureView()
 		_dx12.Device()->CreateShaderResourceView(toonResource.Get(), &srvDesc, matDescHeapH);
 		matDescHeapH.ptr += incSize;
 	}
+
+	return S_OK;
 }
 
 void PMDActor::Update()
 {
 	_angle += 0.03f;
-	_mappedTransform->world = XMMatrixRotationY(_angle);
+	_mappedMatrices[0] = XMMatrixRotationY(_angle);
 }
 
 void PMDActor::Draw()
