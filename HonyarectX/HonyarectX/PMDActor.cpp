@@ -262,6 +262,22 @@ HRESULT PMDActor::LoadPMDFile(const char* path)
 		}
 	}
 
+	UINT16 boneNum = 0;
+	fread(&boneNum, sizeof(boneNum), 1, fp);
+#pragma pack(1)
+	// 読み込み用ボーン構造体
+	struct PMDBone {
+		char boneName[20];					// ボーン名
+		UINT16 parentNo;					// 親ボーン番号
+		UINT16 nextNo;						// 先端のボーン番号
+		UINT8 type;							// ボーン種別
+		UINT16 ikBoneNo;					// IKボーン番号
+		XMFLOAT3 pos;						// ボーンの基準点座標
+	};
+#pragma pack()	// 1バイトパッキング解除
+	vector<PMDBone> pmdBones(boneNum);
+	fread(pmdBones.data(), sizeof(PMDBone), boneNum, fp);
+
 	fclose(fp);
 }
 
