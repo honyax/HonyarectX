@@ -4,6 +4,7 @@
 #include <DirectXMath.h>
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include <string>
 #include <wrl.h>
 
@@ -108,11 +109,24 @@ private:
 	/// <summary>テスト用Y軸回転</summary>
 	float _angle;
 
+	struct KeyFrame {
+		UINT frameNo;
+		DirectX::XMVECTOR quaternion;
+		DirectX::XMFLOAT2 p1;
+		DirectX::XMFLOAT2 p2;
+		KeyFrame(UINT fno, DirectX::XMVECTOR& q, const DirectX::XMFLOAT2& ip1, const DirectX::XMFLOAT2& ip2) :
+			frameNo(fno), quaternion(q), p1(ip1), p2(ip2)
+		{
+		}
+	};
+	std::unordered_map<std::string, std::vector<KeyFrame>> _motiondata;
+
 public:
 	PMDActor(const char* filepath, PMDRenderer& renderer);
 	~PMDActor();
 	/// <summary>クローンは頂点及びマテリアルは共通のバッファを見るようにする</summary>
 	PMDActor* Clone();
+	void LoadVMDFile(const char* filepath, const char* name);
 	void Update();
 	void Draw();
 };

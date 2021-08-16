@@ -74,6 +74,59 @@ PMDActor::~PMDActor()
 {
 }
 
+void PMDActor::LoadVMDFile(const char* filepath, const char* name)
+{
+	FILE* fp;
+	fopen_s(&fp, filepath, "rb");
+	if (fp == nullptr) {
+		assert(0);
+		return;
+	}
+
+	fseek(fp, 50, SEEK_SET);	// 最初の50バイトは飛ばしてOK
+	UINT keyframeNum = 0;
+	fread(&keyframeNum, sizeof(keyframeNum), 1, fp);
+
+	struct VMDKeyFrame {
+		char boneName[15];		// ボーン名
+		UINT frameNo;			// フレーム番号
+		XMFLOAT3 location;		// 位置
+		XMFLOAT4 quaternion;	// クォータニオン（回転）
+		UINT8 bezier[64];		// [4][4][4] ベジェ補間パラメータ
+	};
+	vector<VMDKeyFrame> keyframes(keyframeNum);
+	for (auto& keyframe : keyframes) {
+		fread(keyframe.boneName, sizeof(keyframe.boneName), 1, fp);	// ボーン名
+		
+		fread(&keyframe.frameNo,
+			sizeof(keyframe.frameNo)				// フレーム番号
+			+ sizeof(keyframe.location)			// 位置（IKの時に使用予定）
+			+ sizeof(keyframe.quaternion)			// クォータニオン
+			+ sizeof(keyframe.bezier),			// 補間ベジェデータ
+			1, fp);
+	}
+
+	// VMDのキーフレームデータから、実際に使用するキーフレームテーブルへ変換
+	for (auto& f : keyframes) {
+		auto q = XMLoadFloat4(&f.quaternion);
+		XMFLOAT2 ip1((float)f.bezier[3] / 127.0f, (float)f.bezier[7] / 127.0f);
+		XMFLOAT2 ip2((float)f.bezier[11] / 127.0f, (float)f.bezier[15] / 127.0f);
+		_motiondata[f.boneName].emplace_back(KeyFrame(f.frameNo, q, ip1, ip2));
+	}
+
+	for (auto& bonemotion : _motiondata) {
+		auto node = _boneNodeTable[bonemotion.first];
+		auto& pos = node.startPos;
+		auto mat = XMMatrixTranslation(-pos.x, -pos.y, -pos.z) *
+			XMMatrixRotationQuaternion(bonemotion.second[0].quaternion) *
+			XMMatrixTranslation(pos.x, pos.y, pos.z);
+		_boneMatrices[node.boneIdx] = mat;
+	}
+	auto ident = XMMatrixIdentity();
+	RecursiveMatrixMultiply(&_boneNodeTable["センター"], ident);
+	copy(_boneMatrices.begin(), _boneMatrices.end(), _mappedMatrices + 1);
+}
+
 HRESULT PMDActor::LoadPMDFile(const char* path)
 {
 	// PMDヘッダ構造体
