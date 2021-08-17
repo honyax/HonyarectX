@@ -16,6 +16,7 @@ class PMDActor
 	friend PMDRenderer;
 
 private:
+	UINT _duration = 0;
 	PMDRenderer& _renderer;
 	Dx12Wrapper& _dx12;
 	template<typename T>
@@ -121,6 +122,13 @@ private:
 	};
 	std::unordered_map<std::string, std::vector<KeyFrame>> _motiondata;
 
+	float GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n = 12);
+
+	/// <summary>アニメーション開始時点のミリ秒時刻</summary>
+	UINT64 _startTime;
+
+	void MotionUpdate();
+
 public:
 	PMDActor(const char* filepath, PMDRenderer& renderer);
 	~PMDActor();
@@ -129,4 +137,5 @@ public:
 	void LoadVMDFile(const char* filepath, const char* name);
 	void Update();
 	void Draw();
+	void PlayAnimation();
 };
