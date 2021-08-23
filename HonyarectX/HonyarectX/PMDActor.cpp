@@ -2,6 +2,7 @@
 #include "PMDRenderer.h"
 #include "Dx12Wrapper.h"
 #include <d3dx12.h>
+#include <array>
 #include <algorithm>
 using namespace Microsoft::WRL;
 using namespace std;
@@ -54,6 +55,242 @@ namespace
 		auto folderPath = modelPath.substr(0, pathIndex + 1);
 		return folderPath + texPath;
 	}
+
+	XMMATRIX LookAtMatrix(const XMVECTOR& lookat, XMFLOAT3& up, XMFLOAT3& right)
+	{
+		// 向かせたい方向（Z軸）
+		XMVECTOR vz = lookat;
+
+		// （向かせたい方向を向かせたときの）仮のY軸ベクトル
+		XMVECTOR vy = XMVector3Normalize(XMLoadFloat3(&up));
+
+		// （向かせたい方向を向かせたときの）X軸
+		//XMVECTOR vx = XMVector3Normalize(XMVector3Cross(vz, vx));
+		XMVECTOR vx = XMVector3Normalize(XMVector3Cross(vy, vz));
+		vy = XMVector3Normalize(XMVector3Cross(vz, vx));
+
+		// LookAtとupが同じ方向を向いてたらright基準で作り直す
+		if (abs(XMVector3Dot(vy, vz).m128_f32[0]) == 1.0f) {
+			// 仮のX方向を定義
+			vx = XMVector3Normalize(XMLoadFloat3(&right));
+			// 向かせたい方向を向かせたときのY軸を計算
+			vy = XMVector3Normalize(XMVector3Cross(vz, vx));
+			// 真のX軸を計算
+			vx = XMVector3Normalize(XMVector3Cross(vy, vz));
+		}
+		XMMATRIX ret = XMMatrixIdentity();
+		ret.r[0] = vx;
+		ret.r[1] = vy;
+		ret.r[2] = vz;
+		return ret;
+	}
+
+	XMMATRIX LookAtMatrix(const XMVECTOR& origin, const XMVECTOR& lookat, XMFLOAT3& up, XMFLOAT3& right)
+	{
+		return XMMatrixTranspose(LookAtMatrix(origin, up, right)) * LookAtMatrix(lookat, up, right);
+	}
+
+	enum class BoneType {
+		Rotation,		// 回転
+		RotAndMove,		// 回転＆移動
+		IK,				// IK
+		Undefined,		// 未定義
+		IKChild,		// IK影響ボーン
+		RotationChild,	// 回転影響ボーン
+		IKDestination,	// IK接続先
+		Invisible,		// 見えないボーン
+	};
+}
+
+void PMDActor::LookAt(float x, float y, float z)
+{
+	auto vec = XMFLOAT3(x, y, z);
+	auto lookat = XMLoadFloat3(&vec);
+	auto up = XMFLOAT3(0, 1, 0);
+	auto right = XMFLOAT3(1, 0, 0);
+	_localMat = LookAtMatrix(lookat, up, right);
+}
+
+void PMDActor::SolveLookAt(const PMDIK& ik)
+{
+	// この関数に来た時点でノードはひとつしかなく、チェーンに入っているノード番号はIKのルートノードのものなので、
+	// このルートノードからターゲットに向かうベクトルを考えれば良い
+	auto rootNode = _boneNodeAddressArray[ik.nodeIdxes[0]];
+	auto targetNode = _boneNodeAddressArray[ik.targetIdx];	// ！？
+
+	auto opos1 = XMLoadFloat3(&rootNode->startPos);
+	auto tpos1 = XMLoadFloat3(&targetNode->startPos);
+
+	auto opos2 = XMVector3Transform(opos1, _boneMatrices[ik.nodeIdxes[0]]);
+	auto tpos2 = XMVector3Transform(tpos1, _boneMatrices[ik.boneIdx]);
+
+	auto originVec = XMVectorSubtract(tpos1, opos1);
+	auto targetVec = XMVectorSubtract(tpos2, opos2);
+
+	originVec = XMVector3Normalize(originVec);
+	targetVec = XMVector3Normalize(targetVec);
+
+	auto up = XMFLOAT3(0, 1, 0);
+	auto right = XMFLOAT3(1, 0, 0);
+	XMMATRIX mat = XMMatrixTranslationFromVector(-opos2) * LookAtMatrix(originVec, targetVec, up, right) * XMMatrixTranslationFromVector(opos2);
+
+	_boneMatrices[ik.nodeIdxes[0]] = mat;
+}
+
+void PMDActor::SolveCosineIK(const PMDIK& ik)
+{
+	vector<XMVECTOR> positions;		// IK構成点を保存
+	array<float, 2> edgeLens;		// IKのそれぞれのボーン間の距離を保存
+
+	// ターゲット（末端ボーンではなく、末端ボーンが近づく目標ボーンの座標を取得）
+	auto& targetNode = _boneNodeAddressArray[ik.boneIdx];
+	auto targetPos = XMVector3Transform(XMLoadFloat3(&targetNode->startPos), _boneMatrices[ik.boneIdx]);
+
+	// IKチェーンが逆順なので、逆に並ぶようにしている
+	// 末端ボーン
+	auto endNode = _boneNodeAddressArray[ik.targetIdx];
+	positions.emplace_back(XMLoadFloat3(&endNode->startPos));
+	// 中間及びルートボーン
+	for (auto& chainBoneIdx : ik.nodeIdxes) {
+		auto boneNode = _boneNodeAddressArray[chainBoneIdx];
+		positions.emplace_back(XMLoadFloat3(&boneNode->startPos));
+	}
+	// ちょっと分かりづらいので逆にしておく
+	reverse(positions.begin(), positions.end());
+
+	// 元の長さを測っておく
+	edgeLens[0] = XMVector3Length(XMVectorSubtract(positions[1], positions[0])).m128_f32[0];
+	edgeLens[1] = XMVector3Length(XMVectorSubtract(positions[2], positions[1])).m128_f32[0];
+
+	// ルートボーン座標変換（逆順になっているため使用するインデックスに注意）
+	positions[0] = XMVector3Transform(positions[0], _boneMatrices[ik.nodeIdxes[1]]);
+	// 真ん中はどうせ自動計算されるので計算しない
+	// 先端ボーン
+	positions[2] = XMVector3Transform(positions[2], _boneMatrices[ik.boneIdx]);		// 本当はik.targetIdxだが・・・！？
+
+	// ルートから先端へのベクトルを作っておく
+	auto linearVec = XMVectorSubtract(positions[2], positions[0]);
+	float a = XMVector3Length(linearVec).m128_f32[0];
+	float b = edgeLens[0];
+	float c = edgeLens[1];
+
+	linearVec = XMVector3Normalize(linearVec);
+
+	// ルートから真ん中への角度計算
+	float theta1 = acosf((a * a + b * b - c * c) / (2 * a * b));
+
+	// 真ん中からターゲットへの角度計算
+	float theta2 = acosf((b * b + c * c - a * a) / (2 * b * c));
+
+	// 「軸」を求める
+	// もし真ん中が「ひざ」であった場合には強制的にX軸とする。
+	XMVECTOR axis;
+	if (find(_kneeIdxes.begin(), _kneeIdxes.end(), ik.nodeIdxes[0]) == _kneeIdxes.end()) {
+		auto vm = XMVector3Normalize(XMVectorSubtract(positions[2], positions[0]));
+		auto vt = XMVector3Normalize(XMVectorSubtract(targetPos, positions[0]));
+		axis = XMVector3Cross(vt, vm);
+	}
+	else {
+		auto right = XMFLOAT3(1, 0, 0);
+		axis = XMLoadFloat3(&right);
+	}
+
+	// 注意点・・・IKチェーンは根っこに向かってから数えられるため1が根っこに近い
+	auto mat1 = XMMatrixTranslationFromVector(-positions[0]);
+	mat1 *= XMMatrixRotationAxis(axis, theta1);
+	mat1 *= XMMatrixTranslationFromVector(positions[0]);
+
+	auto mat2 = XMMatrixTranslationFromVector(-positions[1]);
+	mat2 *= XMMatrixRotationAxis(axis, theta2 - XM_PI);
+	mat2 *= XMMatrixTranslationFromVector(positions[1]);
+
+	_boneMatrices[ik.nodeIdxes[1]] *= mat1;
+	_boneMatrices[ik.nodeIdxes[0]] = mat2 * _boneMatrices[ik.nodeIdxes[1]];
+	_boneMatrices[ik.targetIdx] = _boneMatrices[ik.nodeIdxes[0]];//直前の影響を受ける
+	//_boneMatrices[ik.nodeIdxes[1]] = _boneMatrices[ik.boneIdx];
+	//_boneMatrices[ik.nodeIdxes[0]] = _boneMatrices[ik.boneIdx];
+	//_boneMatrices[ik.targetIdx] *= _boneMatrices[ik.boneIdx];
+}
+
+constexpr float epsilon = 0.0005f;
+void PMDActor::SolveCCDIK(const PMDIK& ik)
+{
+	// ターゲット
+	auto targetBoneNode = _boneNodeAddressArray[ik.boneIdx];
+	auto targetOriginPos = XMLoadFloat3(&targetBoneNode->startPos);
+
+	auto parentMat = _boneMatrices[_boneNodeAddressArray[ik.boneIdx]->ikParentBone];
+	XMVECTOR det;
+	auto invParentMat = XMMatrixInverse(&det, parentMat);
+	auto targetNextPos = XMVector3Transform(targetOriginPos, _boneMatrices[ik.boneIdx] * invParentMat);
+
+	// まずはIKの間にあるボーンの座標を入れておく(逆順注意)
+	std::vector<XMVECTOR> bonePositions;
+	//auto endPos = XMVector3Transform(
+	//	XMLoadFloat3(&_boneNodeAddressArray[ik.targetIdx]->startPos),
+	//	//_boneMatrices[ik.targetIdx]);
+	//	XMMatrixIdentity());
+	// 末端ノード
+	auto endPos = XMLoadFloat3(&_boneNodeAddressArray[ik.targetIdx]->startPos);
+	// 中間ノード（ルートを含む）
+	for (auto& cidx : ik.nodeIdxes) {
+		//bonePositions.emplace_back(XMVector3Transform(XMLoadFloat3(&_boneNodeAddressArray[cidx]->startPos), _boneMatrices[cidx] ));
+		bonePositions.push_back(XMLoadFloat3(&_boneNodeAddressArray[cidx]->startPos));
+	}
+
+	vector<XMMATRIX> mats(bonePositions.size());
+	fill(mats.begin(), mats.end(), XMMatrixIdentity());
+	// ちょっとよくわからないが、PMDエディタの6.8°が0.03になっており、これは180で割っただけの値である。
+	// つまりこれをラジアンとして使用するにはXM_PIを乗算しなければならない…と思われる。
+	auto ikLimit = ik.limit * XM_PI;
+	// ikに設定されている試行回数だけ繰り返す
+	for (int c = 0; c < ik.iterations; ++c) {
+		// ターゲットと末端がほぼ一致したら抜ける
+		if (XMVector3Length(XMVectorSubtract(endPos, targetNextPos)).m128_f32[0] <= epsilon) {
+			break;
+		}
+		// それぞれのボーンを遡りながら角度制限に引っ掛からないように曲げていく
+		for (int bidx = 0; bidx < bonePositions.size(); ++bidx) {
+			const auto& pos = bonePositions[bidx];
+
+			// まず現在のノードから末端までと、現在のノードからターゲットまでのベクトルを作る
+			auto vecToEnd = XMVectorSubtract(endPos, pos);
+			auto vecToTarget = XMVectorSubtract(targetNextPos, pos);
+			vecToEnd = XMVector3Normalize(vecToEnd);
+			vecToTarget = XMVector3Normalize(vecToTarget);
+
+			// ほぼ同じベクトルになってしまった場合は外積できないため次のボーンに引き渡す
+			if (XMVector3Length(XMVectorSubtract(vecToEnd, vecToTarget)).m128_f32[0] <= epsilon) {
+				continue;
+			}
+			// 外積計算および角度計算
+			auto cross = XMVector3Normalize(XMVector3Cross(vecToEnd, vecToTarget));
+			float angle = XMVector3AngleBetweenVectors(vecToEnd, vecToTarget).m128_f32[0];
+			angle = min(angle, ikLimit);						// 回転限界補正
+			XMMATRIX rot = XMMatrixRotationAxis(cross, angle);	// 回転行列
+			// posを中心に回転
+			auto mat = XMMatrixTranslationFromVector(-pos) *
+				rot *
+				XMMatrixTranslationFromVector(pos);
+			mats[bidx] *= mat;									// 回転行列を保持しておく（乗算で回転重ね掛けを作っておく）
+			// 対象となる点をすべて回転させる（現在の点から見て末端側を回転）
+			for (auto idx = bidx - 1; idx >= 0; --idx) {		// 自分を回転させる必要はない
+				bonePositions[idx] = XMVector3Transform(bonePositions[idx], mat);
+			}
+			endPos = XMVector3Transform(endPos, mat);
+			// もし正解に近くなってたらループを抜ける
+			if (XMVector3Length(XMVectorSubtract(endPos, targetNextPos)).m128_f32[0] <= epsilon) {
+				break;
+			}
+		}
+	}
+	int idx = 0;
+	for (auto& cidx : ik.nodeIdxes) {
+		_boneMatrices[cidx] = mats[idx];
+		++idx;
+	}
+	auto node = _boneNodeAddressArray[ik.nodeIdxes.back()];
+	RecursiveMatrixMultiply(node, parentMat, true);
 }
 
 float PMDActor::GetYFromXOnBezier(float x, const XMFLOAT2& a, const XMFLOAT2& b, uint8_t n)
@@ -129,11 +366,94 @@ void PMDActor::LoadVMDFile(const char* filepath, const char* name)
 		fread(keyframe.boneName, sizeof(keyframe.boneName), 1, fp);	// ボーン名
 		
 		fread(&keyframe.frameNo,
-			sizeof(keyframe.frameNo)				// フレーム番号
+			sizeof(keyframe.frameNo)			// フレーム番号
 			+ sizeof(keyframe.location)			// 位置（IKの時に使用予定）
-			+ sizeof(keyframe.quaternion)			// クォータニオン
+			+ sizeof(keyframe.quaternion)		// クォータニオン
 			+ sizeof(keyframe.bezier),			// 補間ベジェデータ
 			1, fp);
+	}
+
+#pragma pack(1)
+	// 表情データ（頂点モーフデータ）
+	struct VMDMorph {
+		char name[15];		// 名前（パディングしてしまう）
+		uint32_t frameNo;	// フレーム番号
+		float weight;		// ウェイト（0.0f～1.0f）
+	};
+#pragma pack()
+	uint32_t morphCount = 0;
+	fread(&morphCount, sizeof(morphCount), 1, fp);
+	vector<VMDMorph> morphs(morphCount);
+	fread(morphs.data(), sizeof(VMDMorph), morphCount, fp);
+
+#pragma pack(1)
+	// カメラ
+	struct VMDCamera {
+		uint32_t frameNo;			// フレーム番号
+		float distance;				// 距離
+		XMFLOAT3 pos;				// 座標
+		XMFLOAT3 eulerAngle;		// オイラー角
+		uint8_t interpolation[24];	// 補完
+		uint32_t fov;				// 視界角
+		uint8_t persFlg;			// パースフラグON/OFF
+	};
+#pragma pack()
+	uint32_t vmdCameraCount = 0;
+	fread(&vmdCameraCount, sizeof(vmdCameraCount), 1, fp);
+	vector<VMDCamera> cameraData(vmdCameraCount);
+	fread(cameraData.data(), sizeof(VMDCamera), vmdCameraCount, fp);
+
+	// ライト照明データ
+	struct VMDLight {
+		uint32_t frameNo;	// フレーム番号
+		XMFLOAT3 rgb;		// ライト色
+		XMFLOAT3 vec;		// 光線ベクトル（平行光線）
+	};
+	uint32_t vmdLightCount = 0;
+	fread(&vmdLightCount, sizeof(vmdLightCount), 1, fp);
+	vector<VMDLight> lights(vmdLightCount);
+	fread(lights.data(), sizeof(VMDLight), vmdLightCount, fp);
+
+#pragma pack(1)
+	// セルフ影データ
+	struct VMDSelfShadow {
+		uint32_t frameNo;	// フレーム番号
+		uint8_t mode;		// 影モード（0:影なし、1：モード1、2:モード2）
+		float distance;		// 距離
+	};
+#pragma pack()
+	uint32_t selfShadowCount = 0;
+	fread(&selfShadowCount, sizeof(selfShadowCount), 1, fp);
+	vector<VMDSelfShadow> selfShadowData(selfShadowCount);
+	fread(selfShadowData.data(), sizeof(VMDSelfShadow), selfShadowCount, fp);
+
+	// IKオンオフ切り替わり数
+	uint32_t ikSwitchCount = 0;
+	fread(&ikSwitchCount, sizeof(ikSwitchCount), 1, fp);
+	// IK切り替えのデータ構造は少しだけ特殊で、いくつ切り替えようがそのキーフレームは消費される。
+	// その中で切り替える可能性のあるIKの名前とそのフラグがすべて登録されている状態。
+
+	// ここからは気を遣って読み込む。
+	// キーフレームごとのデータでありIKボーン（名前で検索）ごとにオン、オフフラグを
+	// 持っているというデータであるとして構造体を作っていく。
+	_ikEnableData.resize(ikSwitchCount);
+	for (auto& ikEnable : _ikEnableData) {
+		// キーフレーム情報なのでまずはフレーム番号読み込み
+		fread(&ikEnable.frameNo, sizeof(ikEnable.frameNo), 1, fp);
+		// 次に可視フラグがあるがこれは使用しないので1バイトシークでもOK
+		uint8_t visibleFlg = 0;
+		fread(&visibleFlg, sizeof(visibleFlg), 1, fp);
+		// 対象ボーン数読み込み
+		uint32_t ikBoneCount = 0;
+		fread(&ikBoneCount, sizeof(ikBoneCount), 1, fp);
+		// ループしつつ名前とON/OFF情報を取得
+		for (int i = 0; i < ikBoneCount; ++i) {
+			char ikBoneName[20];
+			fread(ikBoneName, _countof(ikBoneName), 1, fp);
+			uint8_t flg = 0;
+			fread(&flg, sizeof(flg), 1, fp);
+			ikEnable.ikEnableTable[ikBoneName] = flg;
+		}
 	}
 
 	fclose(fp);
@@ -143,7 +463,7 @@ void PMDActor::LoadVMDFile(const char* filepath, const char* name)
 		auto q = XMLoadFloat4(&f.quaternion);
 		XMFLOAT2 ip1((float)f.bezier[3] / 127.0f, (float)f.bezier[7] / 127.0f);
 		XMFLOAT2 ip2((float)f.bezier[11] / 127.0f, (float)f.bezier[15] / 127.0f);
-		_motiondata[f.boneName].emplace_back(KeyFrame(f.frameNo, q, ip1, ip2));
+		_motiondata[f.boneName].emplace_back(KeyFrame(f.frameNo, q, f.location, ip1, ip2));
 		_duration = max<UINT>(_duration, f.frameNo);
 	}
 
@@ -202,18 +522,20 @@ void PMDActor::MotionUpdate()
 
 		auto rit = find_if(keyframes.rbegin(), keyframes.rend(), [frameNo](const KeyFrame& keyframe) {
 			return keyframe.frameNo <= frameNo;
-		});
+			});
 		if (rit == keyframes.rend()) {
 			// 合致するものがなければ飛ばす
 			continue;
 		}
 
-		XMMATRIX rotation;
+		XMMATRIX rotation = XMMatrixIdentity();
+		XMVECTOR offset = XMLoadFloat3(&rit->offset);
 		auto it = rit.base();
 		if (it != keyframes.end()) {
 			auto t = static_cast<float>(frameNo - rit->frameNo) / static_cast<float>(it->frameNo - rit->frameNo);
 			t = GetYFromXOnBezier(t, it->p1, it->p2, 12);
 			rotation = XMMatrixRotationQuaternion(XMQuaternionSlerp(rit->quaternion, it->quaternion, t));
+			offset = XMVectorLerp(offset, XMLoadFloat3(&it->offset), t);
 		}
 		else {
 			rotation = XMMatrixRotationQuaternion(rit->quaternion);
@@ -223,10 +545,54 @@ void PMDActor::MotionUpdate()
 		auto mat = XMMatrixTranslation(-pos.x, -pos.y, -pos.z)	// 原点に戻し
 			* rotation											// 回転
 			* XMMatrixTranslation(pos.x, pos.y, pos.z);			// 元の座標に戻す
-		_boneMatrices[node.boneIdx] = mat;
+		_boneMatrices[node.boneIdx] = mat * XMMatrixTranslationFromVector(offset);
 	}
 	RecursiveMatrixMultiply(&_boneNodeTable["センター"], ident);
+
+	IKSolve(frameNo);
+
 	copy(_boneMatrices.begin(), _boneMatrices.end(), _mappedMatrices + 1);
+}
+
+void PMDActor::IKSolve(int frameNo)
+{
+	// いつもの逆から検索
+	auto it = find_if(_ikEnableData.rbegin(), _ikEnableData.rend(),
+		[frameNo](const VMDIKEnable& ikenable) {
+			return ikenable.frameNo <= frameNo;
+		});
+
+	// まずはIKのターゲットボーンを動かす
+	for (auto& ik : _ikData) {
+		// IK解決のためのループ
+
+		if (it != _ikEnableData.rend()) {
+			auto ikEnableIt = it->ikEnableTable.find(_boneNameArray[ik.boneIdx]);
+			if (ikEnableIt != it->ikEnableTable.end()) {
+				if (!ikEnableIt->second) {
+					// もしOFFなら打ち切る
+					continue;
+				}
+			}
+		}
+
+		auto childrenNodesCount = ik.nodeIdxes.size();
+
+		switch (childrenNodesCount) {
+		case 0:		// 間のボーン数が0はありえない
+			assert(0);
+			continue;
+		case 1:		// 間のボーン数が1のときはLookAt
+			SolveLookAt(ik);
+			break;
+		case 2:		// 間のボーン数が2のときは余弦定理IK
+			SolveCosineIK(ik);
+			break;
+		default:	// 3以上のときはCCD-IK
+			SolveCCDIK(ik);
+			break;
+		}
+	}
 }
 
 HRESULT PMDActor::LoadPMDFile(const char* path)
@@ -433,8 +799,29 @@ HRESULT PMDActor::LoadPMDFile(const char* path)
 	vector<PMDBone> pmdBones(boneNum);
 	fread(pmdBones.data(), sizeof(PMDBone), boneNum, fp);
 
+	uint16_t ikNum = 0;
+	fread(&ikNum, sizeof(ikNum), 1, fp);
+
+	_ikData.resize(ikNum);
+	for (auto& ik : _ikData) {
+		fread(&ik.boneIdx, sizeof(ik.boneIdx), 1, fp);
+		fread(&ik.targetIdx, sizeof(ik.targetIdx), 1, fp);
+		uint8_t chainLen = 0;
+		fread(&chainLen, sizeof(chainLen), 1, fp);
+		ik.nodeIdxes.resize(chainLen);
+		fread(&ik.iterations, sizeof(ik.iterations), 1, fp);
+		fread(&ik.limit, sizeof(ik.limit), 1, fp);
+		if (chainLen == 0)
+			continue;
+		fread(ik.nodeIdxes.data(), sizeof(ik.nodeIdxes[0]), chainLen, fp);
+	}
+
+	fclose(fp);
+
 	// インデックスと名前の対応関係構築のために後で使う
 	vector<string> boneNames(pmdBones.size());
+	_boneNameArray.resize(pmdBones.size());
+	_boneNodeAddressArray.resize(pmdBones.size());
 	// ボーンノードマップを作る
 	for (int idx = 0; idx < pmdBones.size(); ++idx) {
 		auto& pb = pmdBones[idx];
@@ -442,6 +829,16 @@ HRESULT PMDActor::LoadPMDFile(const char* path)
 		auto& node = _boneNodeTable[pb.boneName];
 		node.boneIdx = idx;
 		node.startPos = pb.pos;
+		node.boneType = pb.type;
+		node.parentBone = pb.parentNo;
+		node.ikParentBone = pb.ikBoneNo;
+		_boneNameArray[idx] = pb.boneName;
+		_boneNodeAddressArray[idx] = &node;
+
+		string boneName = pb.boneName;
+		if (boneName.find("ひざ") != std::string::npos) {
+			_kneeIdxes.emplace_back(idx);
+		}
 	}
 	// 親子関係を構築する
 	for (auto& pb : pmdBones) {
@@ -455,8 +852,6 @@ HRESULT PMDActor::LoadPMDFile(const char* path)
 
 	// ボーンをすべて初期化
 	std::fill(_boneMatrices.begin(), _boneMatrices.end(), XMMatrixIdentity());
-
-	fclose(fp);
 
 	return S_OK;
 }
@@ -527,15 +922,14 @@ HRESULT PMDActor::CreateTransformView()
 	return S_OK;
 }
 
-void PMDActor::RecursiveMatrixMultiply(BoneNode* node, DirectX::XMMATRIX& mat)
+void PMDActor::RecursiveMatrixMultiply(BoneNode* node, const DirectX::XMMATRIX& mat, bool flg)
 {
 	if (node == nullptr)
 		return;
 
-	_boneMatrices[node->boneIdx] = mat;
+	_boneMatrices[node->boneIdx] *= mat;
 	for (auto& cnode : node->children) {
-		auto cmat = _boneMatrices[cnode->boneIdx] * mat;
-		RecursiveMatrixMultiply(cnode, cmat);
+		RecursiveMatrixMultiply(cnode, _boneMatrices[node->boneIdx]);
 	}
 }
 
