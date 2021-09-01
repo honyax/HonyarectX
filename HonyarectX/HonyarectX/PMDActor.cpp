@@ -447,7 +447,7 @@ void PMDActor::LoadVMDFile(const char* filepath, const char* name)
 		uint32_t ikBoneCount = 0;
 		fread(&ikBoneCount, sizeof(ikBoneCount), 1, fp);
 		// ループしつつ名前とON/OFF情報を取得
-		for (int i = 0; i < ikBoneCount; ++i) {
+		for (UINT i = 0; i < ikBoneCount; ++i) {
 			char ikBoneName[20];
 			fread(ikBoneName, _countof(ikBoneName), 1, fp);
 			uint8_t flg = 0;
@@ -559,7 +559,7 @@ void PMDActor::IKSolve(int frameNo)
 	// いつもの逆から検索
 	auto it = find_if(_ikEnableData.rbegin(), _ikEnableData.rend(),
 		[frameNo](const VMDIKEnable& ikenable) {
-			return ikenable.frameNo <= frameNo;
+			return ikenable.frameNo <= static_cast<UINT>(frameNo);
 		});
 
 	// まずはIKのターゲットボーンを動かす
