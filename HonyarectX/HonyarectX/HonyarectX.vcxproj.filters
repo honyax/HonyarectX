@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="ソース ファイル\shader">
+      <UniqueIdentifier>{ff869dfa-f46b-4750-8adf-eb3bc03d5e96}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -32,17 +35,12 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="BasicVertexShader.hlsl">
-      <Filter>ソース ファイル</Filter>
-    </FxCompile>
     <FxCompile Include="BasicPixelShader.hlsl">
-      <Filter>ソース ファイル</Filter>
+      <Filter>ソース ファイル\shader</Filter>
     </FxCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="BasicShaderHeader.hlsli">
-      <Filter>ソース ファイル</Filter>
-    </None>
+    <FxCompile Include="BasicVertexShader.hlsl">
+      <Filter>ソース ファイル\shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="img\textest.png">
@@ -62,5 +60,10 @@
     <ClInclude Include="PMDActor.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="BasicShaderHeader.hlsli">
+      <Filter>ソース ファイル\shader</Filter>
+    </None>
   </ItemGroup>
 </Project>
